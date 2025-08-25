@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 239 62% 20%;
+    --foreground: 0 0% 98%;
+
+    --card: 239 62% 23%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 239 62% 20%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 29 91% 54%;
+    --primary-foreground: 239 62% 10%;
+
+    --secondary: 239 40% 28%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 290 26% 25%;
+    --muted-foreground: 0 0% 63.9%;
+
+    --accent: 239 50% 35%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 239 62% 30%;
+    --input: 239 62% 30%;
+    --input-foreground: 0 0% 63.9%;
+    --ring: 29 91% 54%;
+
+    --radius: 0.5rem;
+    
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+
+  .light {
+    /* Keep main background and foreground the same */
+    --background: 239 62% 20%;
+    --foreground: 0 0% 98%;
+    
+    /* Card is white with dark blue foreground */
+    --card: 0 0% 100%;
+    --card-foreground: 239 62% 20%;
+
+    /* Popover follows card */
+    --popover: 0 0% 100%;
+    --popover-foreground: 239 62% 20%;
+    
+    /* Primary is still orange, but foreground is dark blue */
+    --primary: 29 91% 54%;
+    --primary-foreground: 239 62% 10%;
+
+    /* Secondary can be a light gray */
+    --secondary: 0 0% 95%;
+    --secondary-foreground: 239 62% 20%;
+
+    /* Muted colors */
+    --muted: 0 0% 90%;
+    --muted-foreground: 239 62% 40%;
+    
+    /* Accent for hover states */
+    --accent: 0 0% 95%;
+    --accent-foreground: 239 62% 15%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 239 62% 80%;
+    --input: 239 62% 30%; /* Keep input dark to match header */
+    --input-foreground: 0 0% 98%; /* Make placeholder white */
+    --ring: 29 91% 54%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

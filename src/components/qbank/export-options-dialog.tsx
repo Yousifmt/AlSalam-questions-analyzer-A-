@@ -42,7 +42,11 @@ export function ExportOptionsDialog({ isOpen, setIsOpen, questions }: ExportOpti
     let questionsToProcess = [...questions];
 
     if (order === 'random') {
-      questionsToProcess.sort(() => Math.random() - 0.5);
+      // Use the Fisher-Yates (aka Knuth) Shuffle for a truly random result
+      for (let i = questionsToProcess.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [questionsToProcess[i], questionsToProcess[j]] = [questionsToProcess[j], questionsToProcess[i]];
+      }
     }
 
     const finalQuestions = questionsToProcess.slice(0, count);

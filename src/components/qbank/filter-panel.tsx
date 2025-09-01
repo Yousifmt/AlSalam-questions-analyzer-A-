@@ -1,12 +1,13 @@
 
 "use client";
 
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { ScrollArea } from "../ui/scroll-area";
+
 
 const questionTypes = [
     { id: 'mcq', label: 'Multiple Choice' },
@@ -29,9 +30,10 @@ type FilterPanelProps = {
     chapters: string[];
     sort: string;
     setSort: (sort: string) => void;
+    onCloseSheet: () => void;
 };
 
-export default function FilterPanel({ filters, setFilters, chapters, sort, setSort }: FilterPanelProps) {
+export default function FilterPanel({ filters, setFilters, chapters, sort, setSort, onCloseSheet }: FilterPanelProps) {
     const handleMultiSelectChange = (filterName: string, value: string) => {
         const currentValues = filters[filterName] as string[];
         const newValues = currentValues.includes(value)
@@ -42,16 +44,22 @@ export default function FilterPanel({ filters, setFilters, chapters, sort, setSo
 
     const handleSwitchChange = (filterName: string, checked: boolean) => {
         setFilters({ ...filters, [filterName]: checked });
+        if (filterName === 'showSavedOnly') {
+            onCloseSheet();
+        }
     };
     
     const handleSelectChange = (filterName: string, value: string) => {
         setFilters({ ...filters, [filterName]: value });
+        if (filterName === 'quiz') {
+            onCloseSheet();
+        }
     };
 
     return (
-        <div className="space-y-4 p-4">
+        <div className="space-y-6 p-4">
             <div className="space-y-2">
-                <h3 className="font-headline text-lg font-semibold tracking-tight">Sort By</h3>
+                <Label className="font-semibold text-foreground">Sort By</Label>
                  <Select value={sort} onValueChange={setSort}>
                     <SelectTrigger className="w-full">
                         <SelectValue placeholder="Sort by" />
@@ -63,40 +71,29 @@ export default function FilterPanel({ filters, setFilters, chapters, sort, setSo
                     </SelectContent>
                 </Select>
             </div>
+            
             <Separator />
-            <h3 className="font-headline text-lg font-semibold tracking-tight">Filters</h3>
-            <Accordion type="multiple" defaultValue={['quiz', 'status', 'type']} className="w-full">
-                <AccordionItem value="quiz">
-                    <AccordionTrigger className="font-semibold">Quiz</AccordionTrigger>
-                    <AccordionContent className="space-y-2">
-                        <Select value={filters.quiz} onValueChange={(value) => handleSelectChange('quiz', value)}>
-                            <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select a quiz" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {quizzes.map((quiz) => (
-                                    <SelectItem key={quiz.id} value={quiz.id}>{quiz.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </AccordionContent>
-                </AccordionItem>
-                <AccordionItem value="status">
-                    <AccordionTrigger className="font-semibold">Status</AccordionTrigger>
-                    <AccordionContent className="space-y-2">
-                         <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
-                            <Label htmlFor="saved-only">Show Saved Only</Label>
-                            <Switch 
-                                id="saved-only"
-                                checked={filters.showSavedOnly}
-                                onCheckedChange={(checked) => handleSwitchChange('showSavedOnly', checked)}
-                            />
-                        </div>
-                    </AccordionContent>
-                </AccordionItem>
-                <AccordionItem value="chapter">
-                    <AccordionTrigger className="font-semibold">Chapter</AccordionTrigger>
-                    <AccordionContent className="space-y-2 max-h-60 overflow-y-auto">
+
+            <div className="space-y-2">
+                <Label className="font-semibold text-foreground">Quiz</Label>
+                <Select value={filters.quiz} onValueChange={(value) => handleSelectChange('quiz', value)}>
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select a quiz" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {quizzes.map((quiz) => (
+                            <SelectItem key={quiz.id} value={quiz.id}>{quiz.label}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            
+            <Separator/>
+
+            <div className="space-y-3">
+                <Label className="font-semibold text-foreground">Chapter</Label>
+                <ScrollArea className="h-60 w-full rounded-md border p-2">
+                    <div className="space-y-2">
                         {chapters.map((chapter) => (
                             <div key={chapter} className="flex items-center space-x-2">
                                 <Checkbox
@@ -104,31 +101,44 @@ export default function FilterPanel({ filters, setFilters, chapters, sort, setSo
                                     checked={filters.chapter.includes(chapter)}
                                     onCheckedChange={() => handleMultiSelectChange('chapter', chapter)}
                                 />
-                                <Label htmlFor={`chapter-${chapter}`}>{chapter}</Label>
+                                <Label htmlFor={`chapter-${chapter}`} className="font-normal">{chapter}</Label>
                             </div>
                         ))}
-                         {chapters.length === 0 && <p className="text-xs text-muted-foreground">No chapters found.</p>}
-                    </AccordionContent>
-                </AccordionItem>
+                        {chapters.length === 0 && <p className="text-xs text-gray-400">No chapters found.</p>}
+                    </div>
+                </ScrollArea>
+            </div>
 
-                <AccordionItem value="type">
-                    <AccordionTrigger className="font-semibold">Question Type</AccordionTrigger>
-                    <AccordionContent className="space-y-2">
-                        {questionTypes.map((type) => (
-                            <div key={type.id} className="flex items-center space-x-2">
-                                <Checkbox
-                                    id={`type-${type.id}`}
-                                    checked={filters.questionType.includes(type.id)}
-                                    onCheckedChange={() => handleMultiSelectChange('questionType', type.id)}
-                                />
-                                <Label htmlFor={`type-${type.id}`}>{type.label}</Label>
-                            </div>
-                        ))}
-                    </AccordionContent>
-                </AccordionItem>
-            </Accordion>
+            <Separator/>
+
+             <div className="space-y-3">
+                <Label className="font-semibold text-foreground">Status & Type</Label>
+                 <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                    <Label htmlFor="saved-only" className="flex flex-col space-y-1">
+                        <span>Saved Questions</span>
+                        <span className="font-normal leading-snug text-gray-400">
+                           Only show questions you have bookmarked.
+                        </span>
+                    </Label>
+                    <Switch 
+                        id="saved-only"
+                        checked={filters.showSavedOnly}
+                        onCheckedChange={(checked) => handleSwitchChange('showSavedOnly', checked)}
+                    />
+                </div>
+                 <div className="space-y-2 pt-2">
+                    {questionTypes.map((type) => (
+                        <div key={type.id} className="flex items-center space-x-2">
+                            <Checkbox
+                                id={`type-${type.id}`}
+                                checked={filters.questionType.includes(type.id)}
+                                onCheckedChange={() => handleMultiSelectChange('questionType', type.id)}
+                            />
+                            <Label htmlFor={`type-${type.id}`} className="font-normal">{type.label}</Label>
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     );
 }
-
-    

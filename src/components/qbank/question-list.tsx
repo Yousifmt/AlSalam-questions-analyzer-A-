@@ -1,4 +1,3 @@
-
 "use client";
 
 import { type Question } from "@/types";
@@ -62,8 +61,8 @@ export default function QuestionList({
         />
         ))
     ) : (
-        <div className="text-center py-16 text-muted-foreground">
-        <h3 className="font-headline text-2xl mb-2">No Questions Found</h3>
+        <div className="text-center py-16 text-gray-400">
+        <h3 className="font-headline text-2xl mb-2 text-foreground">No Questions Found</h3>
         <p>Try adjusting your filters or search query.</p>
         </div>
     )}

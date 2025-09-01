@@ -4,10 +4,10 @@
 
 @layer base {
   :root {
-    --background: 239 62% 20%;
+    --background: 239 62% 18%;
     --foreground: 0 0% 98%;
 
-    --card: 239 62% 23%;
+    --card: 239 62% 25%;
     --card-foreground: 0 0% 98%;
 
     --popover: 239 62% 20%;
@@ -74,7 +74,7 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 239 62% 80%;
+    --border: 239 20% 70%;
     --input: 239 62% 30%; /* Keep input dark to match header */
     --input-foreground: 0 0% 98%; /* Make placeholder white */
     --ring: 29 91% 54%;

@@ -2,11 +2,12 @@
 "use client";
 
 import * as React from "react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import FilterPanel from "./filter-panel";
-import { Filter } from "lucide-react";
+import { Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "../ui/button";
 
 type FilterSheetProps = {
   isOpen: boolean;
@@ -17,9 +18,20 @@ type FilterSheetProps = {
   sort: string;
   setSort: (sort: string) => void;
   disabled?: boolean;
+  onClearAll: () => void;
 };
 
-export default function FilterSheet({ isOpen, setIsOpen, filters, setFilters, chapters, sort, setSort, disabled = false }: FilterSheetProps) {
+export default function FilterSheet({ 
+    isOpen, 
+    setIsOpen, 
+    filters, 
+    setFilters, 
+    chapters, 
+    sort, 
+    setSort, 
+    disabled = false,
+    onClearAll 
+}: FilterSheetProps) {
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetContent side="left" className="w-full sm:max-w-xs p-0 flex flex-col">
@@ -39,8 +51,20 @@ export default function FilterSheet({ isOpen, setIsOpen, filters, setFilters, ch
                 chapters={chapters}
                 sort={sort}
                 setSort={setSort}
+                onCloseSheet={() => setIsOpen(false)}
             />
         </ScrollArea>
+         <SheetFooter className="p-4 border-t border-border bg-background">
+            <Button 
+                variant="outline" 
+                className="w-full" 
+                onClick={onClearAll}
+                disabled={disabled}
+            >
+                <X className="mr-2 h-4 w-4" />
+                Clear All Filters
+            </Button>
+        </SheetFooter>
       </SheetContent>
     </Sheet>
   );

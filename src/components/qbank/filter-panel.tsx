@@ -20,8 +20,8 @@ const quizzes = [
     { id: 'quiz2', label: 'Quiz 2 (101-200)' },
     { id: 'quiz3', label: 'Quiz 3 (201-300)' },
     { id: 'quiz4', label: 'Quiz 4 (301-400)' },
-    { id: 'quiz5', label: 'Quiz 5 (401-500)' },
-    { id: 'quiz6', label: 'Quiz 6 (501+)' },
+    { id: 'quiz5', label: 'Quiz 5 (401-525)' },
+    { id: 'quiz6', label: 'Quiz 6 (526+)' },
 ];
 
 type FilterPanelProps = {

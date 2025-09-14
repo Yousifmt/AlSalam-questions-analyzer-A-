@@ -24,17 +24,19 @@ const EXAM_QUESTION_COUNT = 90;
 
 export type ExamMode = "during" | "after";
 
+const initialFilters = {
+    chapter: [] as string[],
+    questionType: [] as string[],
+    showSavedOnly: false,
+    quiz: 'all',
+};
+
 export default function Home() {
   const [questions, setQuestions] = React.useState<Question[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [filteredQuestions, setFilteredQuestions] = React.useState<Question[]>([]);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [filters, setFilters] = React.useState({
-    chapter: [] as string[],
-    questionType: [] as string[],
-    showSavedOnly: false,
-    quiz: 'all',
-  });
+  const [filters, setFilters] = React.useState(initialFilters);
   const [sort, setSort] = React.useState("chapter_asc");
   const [showAllAnswers, setShowAllAnswers] = React.useState(false);
   const [userAnswers, setUserAnswers] = React.useState<Record<string, string | string[]>>({});
@@ -112,12 +114,19 @@ export default function Home() {
     // Apply quiz filter first
     if (filters.quiz !== 'all') {
       const quizNumber = parseInt(filters.quiz.replace('quiz', ''), 10);
-      const startIndex = (quizNumber - 1) * 100;
-      if (quizNumber === 6) {
-        tempQuestions = chapterSortedQuestions.slice(startIndex); // 500 to end
-      } else {
-        const endIndex = startIndex + 100;
+      let startIndex = (quizNumber - 1) * 100;
+      let endIndex;
+
+      if (quizNumber < 5) {
+        endIndex = startIndex + 100;
         tempQuestions = chapterSortedQuestions.slice(startIndex, endIndex);
+      } else if (quizNumber === 5) {
+        startIndex = 400;
+        endIndex = 525;
+        tempQuestions = chapterSortedQuestions.slice(startIndex, endIndex);
+      } else if (quizNumber === 6) {
+        startIndex = 525;
+        tempQuestions = chapterSortedQuestions.slice(startIndex);
       }
     } else {
       tempQuestions = chapterSortedQuestions;
@@ -263,6 +272,11 @@ export default function Home() {
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+  
+  const clearAllFilters = () => {
+    setFilters(initialFilters);
+    setSort('chapter_asc');
+  }
 
 
   return (
@@ -277,6 +291,7 @@ export default function Home() {
             sort={sort}
             setSort={setSort}
             disabled={isExamMode}
+            onClearAll={clearAllFilters}
           />
         <div className="flex-1 flex flex-col">
           <div className="sticky top-0 z-30">

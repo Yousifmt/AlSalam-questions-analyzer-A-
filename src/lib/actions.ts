@@ -20,6 +20,12 @@ import {
 } from '@/ai/flows/find-similar-questions';
 
 import {
+    findDuplicateQuestions,
+    type FindDuplicateQuestionsInput,
+    type FindDuplicateQuestionsOutput,
+} from '@/ai/flows/find-duplicate-questions';
+
+import {
   categorizeQuestion,
 } from '@/ai/flows/categorize-question';
 
@@ -45,6 +51,12 @@ export async function handleFindSimilarQuestions(
   input: FindSimilarQuestionsInput
 ): Promise<FindSimilarQuestionsOutput> {
   return await findSimilarQuestions(input);
+}
+
+export async function handleFindDuplicateQuestions(
+    input: FindDuplicateQuestionsInput
+): Promise<FindDuplicateQuestionsOutput> {
+    return await findDuplicateQuestions(input);
 }
 
 export async function handleCategorizeQuestion(
@@ -178,3 +190,4 @@ export async function handleUpdateQuestion(question: Question): Promise<{ succes
         return { success: false };
     }
 }
+

@@ -5,7 +5,7 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Filter, PlusCircle, Search, X, Sun, Moon, Eye, EyeOff, Loader2, Lock, Unlock, RefreshCcw, FileText, Download, Wand2 } from "lucide-react";
+import { Filter, PlusCircle, Search, X, Sun, Moon, Eye, EyeOff, Loader2, Lock, Unlock, RefreshCcw, FileText, Download, Wand2, CopyCheck } from "lucide-react";
 import { PasteParserDialog } from './paste-parser-dialog';
 import { type Question } from '@/types';
 import { useTheme } from 'next-themes';
@@ -151,6 +151,10 @@ export default function Header({
                   <Button onClick={() => router.push('/categorize')} variant="outline" size="sm">
                       <Wand2 className="h-4 w-4 md:mr-2" />
                       <span>Batch Categorize</span>
+                  </Button>
+                  <Button onClick={() => router.push('/duplicates')} variant="outline" size="sm">
+                    <CopyCheck className="h-4 w-4 md:mr-2" />
+                    <span>Show Duplicates</span>
                   </Button>
                 </>
               )}

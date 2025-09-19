@@ -1,13 +1,22 @@
-
 "use client";
 
 import * as React from "react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+} from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import FilterPanel from "./filter-panel";
 import { Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
+
+// نفس النوع المستخدم في Home
+export type SortType = "chapter_asc" | "chapter_desc" | "random";
 
 type FilterSheetProps = {
   isOpen: boolean;
@@ -15,22 +24,22 @@ type FilterSheetProps = {
   filters: any;
   setFilters: (filters: any) => void;
   chapters: string[];
-  sort: string;
-  setSort: (sort: string) => void;
+  sort: SortType; // <-- استخدم SortType بدل string
+  setSort: React.Dispatch<React.SetStateAction<SortType>>; // <-- Dispatch متوافق مع useState
   disabled?: boolean;
   onClearAll: () => void;
 };
 
-export default function FilterSheet({ 
-    isOpen, 
-    setIsOpen, 
-    filters, 
-    setFilters, 
-    chapters, 
-    sort, 
-    setSort, 
-    disabled = false,
-    onClearAll 
+export default function FilterSheet({
+  isOpen,
+  setIsOpen,
+  filters,
+  setFilters,
+  chapters,
+  sort,
+  setSort,
+  disabled = false,
+  onClearAll,
 }: FilterSheetProps) {
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -41,29 +50,33 @@ export default function FilterSheet({
             Filter & Sort Questions
           </SheetTitle>
           <SheetDescription className="text-gray-400">
-            {disabled ? "Filters are disabled during Exam Mode." : "Refine and reorder the question list based on your criteria."}
+            {disabled
+              ? "Filters are disabled during Exam Mode."
+              : "Refine and reorder the question list based on your criteria."}
           </SheetDescription>
         </SheetHeader>
+
         <ScrollArea className={cn("flex-1", disabled && "opacity-50 pointer-events-none")}>
-            <FilterPanel
-                filters={filters}
-                setFilters={setFilters}
-                chapters={chapters}
-                sort={sort}
-                setSort={setSort}
-                onCloseSheet={() => setIsOpen(false)}
-            />
+          <FilterPanel
+            filters={filters}
+            setFilters={setFilters}
+            chapters={chapters}
+            sort={sort}
+            setSort={setSort} // يمرّر الـ Dispatch كما هو
+            onCloseSheet={() => setIsOpen(false)}
+          />
         </ScrollArea>
-         <SheetFooter className="p-4 border-t border-border bg-background">
-            <Button 
-                variant="outline" 
-                className="w-full" 
-                onClick={onClearAll}
-                disabled={disabled}
-            >
-                <X className="mr-2 h-4 w-4" />
-                Clear All Filters
-            </Button>
+
+        <SheetFooter className="p-4 border-t border-border bg-background">
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={onClearAll}
+            disabled={disabled}
+          >
+            <X className="mr-2 h-4 w-4" />
+            Clear All Filters
+          </Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

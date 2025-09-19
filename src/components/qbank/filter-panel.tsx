@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Checkbox } from "@/components/ui/checkbox";
@@ -7,138 +6,179 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "../ui/scroll-area";
-
+import * as React from "react";
+import type { SortType } from "./filter-sheet"; // استيراد النوع نفسه
 
 const questionTypes = [
-    { id: 'mcq', label: 'Multiple Choice' },
-    { id: 'checkbox', label: 'Checkboxes' },
+  { id: "mcq", label: "Multiple Choice" },
+  { id: "checkbox", label: "Checkboxes" },
 ];
 
 const quizzes = [
-    { id: 'all', label: 'All Questions' },
-    { id: 'quiz1', label: 'Quiz 1 (1-100)' },
-    { id: 'quiz2', label: 'Quiz 2 (101-200)' },
-    { id: 'quiz3', label: 'Quiz 3 (201-300)' },
-    { id: 'quiz4', label: 'Quiz 4 (301-400)' },
-    { id: 'quiz5', label: 'Quiz 5 (401-525)' },
-    { id: 'quiz6', label: 'Quiz 6 (526+)' },
+  { id: "all", label: "All Questions" },
+  { id: "quiz1", label: "Quiz 1 (1-100)" },
+  { id: "quiz2", label: "Quiz 2 (101-200)" },
+  { id: "quiz3", label: "Quiz 3 (201-300)" },
+  { id: "quiz4", label: "Quiz 4 (301-400)" },
+  { id: "quiz5", label: "Quiz 5 (401-525)" },
+  { id: "quiz6", label: "Quiz 6 (526+)" },
 ];
 
 type FilterPanelProps = {
-    filters: any;
-    setFilters: (filters: any) => void;
-    chapters: string[];
-    sort: string;
-    setSort: (sort: string) => void;
-    onCloseSheet: () => void;
+  filters: any;
+  setFilters: (filters: any) => void;
+  chapters: string[];
+  sort: SortType; // <-- استخدم SortType
+  setSort: React.Dispatch<React.SetStateAction<SortType>>; // <-- Dispatch متوافق
+  onCloseSheet: () => void;
 };
 
-export default function FilterPanel({ filters, setFilters, chapters, sort, setSort, onCloseSheet }: FilterPanelProps) {
-    const handleMultiSelectChange = (filterName: string, value: string) => {
-        const currentValues = filters[filterName] as string[];
-        const newValues = currentValues.includes(value)
-            ? currentValues.filter((v) => v !== value)
-            : [...currentValues, value];
-        setFilters({ ...filters, [filterName]: newValues });
-    };
+export default function FilterPanel({
+  filters,
+  setFilters,
+  chapters,
+  sort,
+  setSort,
+  onCloseSheet,
+}: FilterPanelProps) {
+  const handleMultiSelectChange = (filterName: string, value: string) => {
+    const currentValues = filters[filterName] as string[];
+    const newValues = currentValues.includes(value)
+      ? currentValues.filter((v: string) => v !== value)
+      : [...currentValues, value];
+    setFilters({ ...filters, [filterName]: newValues });
+  };
 
-    const handleSwitchChange = (filterName: string, checked: boolean) => {
-        setFilters({ ...filters, [filterName]: checked });
-        if (filterName === 'showSavedOnly') {
-            onCloseSheet();
-        }
-    };
-    
-    const handleSelectChange = (filterName: string, value: string) => {
-        setFilters({ ...filters, [filterName]: value });
-        if (filterName === 'quiz') {
-            onCloseSheet();
-        }
-    };
+  const handleSwitchChange = (filterName: string, checked: boolean) => {
+    setFilters({ ...filters, [filterName]: checked });
+    if (filterName === "showSavedOnly") {
+      onCloseSheet();
+    }
+  };
 
-    return (
-        <div className="space-y-6 p-4">
-            <div className="space-y-2">
-                <Label className="font-semibold text-foreground">Sort By</Label>
-                 <Select value={sort} onValueChange={setSort}>
-                    <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Sort by" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="chapter_asc">Chapter (Ascending)</SelectItem>
-                        <SelectItem value="chapter_desc">Chapter (Descending)</SelectItem>
-                        <SelectItem value="random">Random</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-            
-            <Separator />
+  const handleSelectChange = (filterName: string, value: string) => {
+    setFilters({ ...filters, [filterName]: value });
+    if (filterName === "quiz") {
+      onCloseSheet();
+    }
+  };
 
-            <div className="space-y-2">
-                <Label className="font-semibold text-foreground">Quiz</Label>
-                <Select value={filters.quiz} onValueChange={(value) => handleSelectChange('quiz', value)}>
-                    <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a quiz" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {quizzes.map((quiz) => (
-                            <SelectItem key={quiz.id} value={quiz.id}>{quiz.label}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-            
-            <Separator/>
+  return (
+    <div className="space-y-6 p-4">
+      <div className="space-y-2">
+        <Label className="font-semibold text-foreground">Sort By</Label>
+        <Select
+          value={sort}
+          onValueChange={(val) => setSort(val as SortType)} // <-- تحويل string إلى SortType
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="chapter_asc">Chapter (Ascending)</SelectItem>
+            <SelectItem value="chapter_desc">Chapter (Descending)</SelectItem>
+            <SelectItem value="random">Random</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-            <div className="space-y-3">
-                <Label className="font-semibold text-foreground">Chapter</Label>
-                <ScrollArea className="h-60 w-full rounded-md border p-2">
-                    <div className="space-y-2">
-                        {chapters.map((chapter) => (
-                            <div key={chapter} className="flex items-center space-x-2">
-                                <Checkbox
-                                    id={`chapter-${chapter}`}
-                                    checked={filters.chapter.includes(chapter)}
-                                    onCheckedChange={() => handleMultiSelectChange('chapter', chapter)}
-                                />
-                                <Label htmlFor={`chapter-${chapter}`} className="font-normal">{chapter}</Label>
-                            </div>
-                        ))}
-                        {chapters.length === 0 && <p className="text-xs text-gray-400">No chapters found.</p>}
-                    </div>
-                </ScrollArea>
-            </div>
+      <Separator />
 
-            <Separator/>
+      <div className="space-y-2">
+        <Label className="font-semibold text-foreground">Quiz</Label>
+        <Select
+          value={filters.quiz}
+          onValueChange={(value) => handleSelectChange("quiz", value)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select a quiz" />
+          </SelectTrigger>
+          <SelectContent>
+            {quizzes.map((quiz) => (
+              <SelectItem key={quiz.id} value={quiz.id}>
+                {quiz.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-             <div className="space-y-3">
-                <Label className="font-semibold text-foreground">Status & Type</Label>
-                 <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
-                    <Label htmlFor="saved-only" className="flex flex-col space-y-1">
-                        <span>Saved Questions</span>
-                        <span className="font-normal leading-snug text-gray-400">
-                           Only show questions you have bookmarked.
-                        </span>
-                    </Label>
-                    <Switch 
-                        id="saved-only"
-                        checked={filters.showSavedOnly}
-                        onCheckedChange={(checked) => handleSwitchChange('showSavedOnly', checked)}
-                    />
-                </div>
-                 <div className="space-y-2 pt-2">
-                    {questionTypes.map((type) => (
-                        <div key={type.id} className="flex items-center space-x-2">
-                            <Checkbox
-                                id={`type-${type.id}`}
-                                checked={filters.questionType.includes(type.id)}
-                                onCheckedChange={() => handleMultiSelectChange('questionType', type.id)}
-                            />
-                            <Label htmlFor={`type-${type.id}`} className="font-normal">{type.label}</Label>
-                        </div>
-                    ))}
-                </div>
-            </div>
+      <Separator />
+
+      <div className="space-y-3">
+        <Label className="font-semibold text-foreground">Chapter</Label>
+        <ScrollArea className="h-60 w-full rounded-md border p-2">
+          <div className="space-y-2">
+            {chapters.map((chapter) => (
+              <div key={chapter} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`chapter-${chapter}`}
+                  checked={filters.chapter.includes(chapter)}
+                  onCheckedChange={() => handleMultiSelectChange("chapter", chapter)}
+                />
+                <Label htmlFor={`chapter-${chapter}`} className="font-normal">
+                  {chapter}
+                </Label>
+              </div>
+            ))}
+            {chapters.length === 0 && (
+              <p className="text-xs text-gray-400">No chapters found.</p>
+            )}
+          </div>
+        </ScrollArea>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-3">
+        <Label className="font-semibold text-foreground">Status & Type</Label>
+
+        {/* Saved Questions */}
+        <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+          <Label htmlFor="saved-only" className="flex flex-col space-y-1">
+            <span>Saved Questions</span>
+            <span className="font-normal leading-snug text-gray-400">
+              Only show questions you have bookmarked.
+            </span>
+          </Label>
+          <Switch
+            id="saved-only"
+            checked={filters.showSavedOnly}
+            onCheckedChange={(checked) => handleSwitchChange("showSavedOnly", checked)}
+          />
         </div>
-    );
+
+        {/* Latest Added (Last 30 Days) */}
+        <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+          <Label htmlFor="recent-only" className="flex flex-col space-y-1">
+            <span>Latest Added (Last 30 Days)</span>
+            <span className="font-normal leading-snug text-gray-400">
+              Show only questions added within the last month.
+            </span>
+          </Label>
+          <Switch
+            id="recent-only"
+            checked={!!filters.recentOnly}
+            onCheckedChange={(checked) => handleSwitchChange("recentOnly", checked)}
+          />
+        </div>
+
+        {/* Types */}
+        <div className="space-y-2 pt-2">
+          {questionTypes.map((type) => (
+            <div key={type.id} className="flex items-center space-x-2">
+              <Checkbox
+                id={`type-${type.id}`}
+                checked={filters.questionType.includes(type.id)}
+                onCheckedChange={() => handleMultiSelectChange("questionType", type.id)}
+              />
+              <Label htmlFor={`type-${type.id}`} className="font-normal">
+                {type.label}
+              </Label>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }

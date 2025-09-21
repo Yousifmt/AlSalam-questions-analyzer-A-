@@ -15,14 +15,15 @@ const questionTypes = [
 ];
 
 const quizzes = [
-  { id: "all", label: "All Questions" },
-  { id: "quiz1", label: "Quiz 1 (1-100)" },
-  { id: "quiz2", label: "Quiz 2 (101-200)" },
-  { id: "quiz3", label: "Quiz 3 (201-300)" },
-  { id: "quiz4", label: "Quiz 4 (301-400)" },
-  { id: "quiz5", label: "Quiz 5 (401-525)" },
-  { id: "quiz6", label: "Quiz 6 (526+)" },
+    { id: 'all', label: 'All Questions' },
+    { id: 'quiz1', label: 'Quiz 1 (1-115)' },
+    { id: 'quiz2', label: 'Quiz 2 (116-230)' },
+    { id: 'quiz3', label: 'Quiz 3 (231-345)' },
+    { id: 'quiz4', label: 'Quiz 4 (346-460)' },
+    { id: 'quiz5', label: 'Quiz 5 (461-575)' },
+    { id: 'quiz6', label: 'Quiz 6 (576+)' },
 ];
+
 
 type FilterPanelProps = {
   filters: any;

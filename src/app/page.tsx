@@ -37,7 +37,7 @@ const initialFilters = {
   questionType: [] as string[],
   showSavedOnly: false,
   quiz: "all",
-  recentOnly: false, // NEW: Latest Added (Last 30 Days)
+  recentOnly: false,
 };
 
 // Normalize createdAt to JS Date (supports Firestore Timestamp or string/date)
@@ -135,22 +135,39 @@ export default function Home() {
       (a, b) => getChapterNumber(a.chapter) - getChapterNumber(b.chapter)
     );
 
-    // 2) Apply quiz filter
+    // 2) Apply quiz filter (UPDATED RANGES)
     if (filters.quiz !== "all") {
       const quizNumber = parseInt(filters.quiz.replace("quiz", ""), 10);
-      let startIndex = (quizNumber - 1) * 100;
-      let endIndex: number | undefined;
 
-      if (quizNumber < 5) {
-        endIndex = startIndex + 100;
+      if (quizNumber >= 1 && quizNumber <= 6) {
+        let startIndex = 0;
+        let endIndex = chapterSortedQuestions.length;
+
+        if (quizNumber === 1) {
+          startIndex = 0;
+          endIndex = 115;
+        } else if (quizNumber === 2) {
+          startIndex = 115;
+          endIndex = 230;
+        } else if (quizNumber === 3) {
+          startIndex = 230;
+          endIndex = 345;
+        } else if (quizNumber === 4) {
+          startIndex = 345;
+          endIndex = 460;
+        } else if (quizNumber === 5) {
+          startIndex = 460;
+          endIndex = 575;
+        } else {
+          // Quiz 6
+          startIndex = 575;
+          endIndex = chapterSortedQuestions.length;
+        }
+
         tempQuestions = chapterSortedQuestions.slice(startIndex, endIndex);
-      } else if (quizNumber === 5) {
-        startIndex = 400;
-        endIndex = 525;
-        tempQuestions = chapterSortedQuestions.slice(startIndex, endIndex);
-      } else if (quizNumber === 6) {
-        startIndex = 525;
-        tempQuestions = chapterSortedQuestions.slice(startIndex);
+      } else {
+        // Fallback: if quiz value is unexpected, keep full sorted list
+        tempQuestions = chapterSortedQuestions;
       }
     } else {
       tempQuestions = chapterSortedQuestions;
@@ -244,15 +261,10 @@ export default function Home() {
       if (!userAnswer) return;
 
       if (Array.isArray(q.correctAnswer)) {
-        if (
-          Array.isArray(userAnswer) &&
-          userAnswer.length === q.correctAnswer.length
-        ) {
+        if (Array.isArray(userAnswer) && userAnswer.length === q.correctAnswer.length) {
           const sortedUserAnswers = [...userAnswer].sort();
           const sortedCorrectAnswers = [...q.correctAnswer].sort();
-          if (
-            sortedUserAnswers.every((val, index) => val === sortedCorrectAnswers[index])
-          ) {
+          if (sortedUserAnswers.every((val, index) => val === sortedCorrectAnswers[index])) {
             score++;
           }
         }
@@ -297,16 +309,12 @@ export default function Home() {
   };
 
   const handleQuestionUpdated = (updatedQuestion: Question) => {
-    setQuestions(
-      questions.map((q) => (q.id === updatedQuestion.id ? updatedQuestion : q))
-    );
+    setQuestions(questions.map((q) => (q.id === updatedQuestion.id ? updatedQuestion : q)));
   };
 
   const toggleSaveQuestion = (questionId: string) => {
     setSavedQuestionIds((prev) =>
-      prev.includes(questionId)
-        ? prev.filter((id) => id !== questionId)
-        : [...prev, questionId]
+      prev.includes(questionId) ? prev.filter((id) => id !== questionId) : [...prev, questionId]
     );
   };
 
@@ -321,10 +329,7 @@ export default function Home() {
 
   return (
     <LockProvider>
-      <div
-        className="flex min-h-screen w-full bg-background text-foreground"
-        ref={pageRef}
-      >
+      <div className="flex min-h-screen w-full bg-background text-foreground" ref={pageRef}>
         <FilterSheet
           isOpen={isFilterSheetOpen}
           setIsOpen={setIsFilterSheetOpen}
@@ -436,10 +441,7 @@ export default function Home() {
         />
 
         {/* Exam Results Dialog */}
-        <AlertDialog
-          open={isResultsDialogOpen}
-          onOpenChange={setIsResultsDialogOpen}
-        >
+        <AlertDialog open={isResultsDialogOpen} onOpenChange={setIsResultsDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Exam Finished!</AlertDialogTitle>

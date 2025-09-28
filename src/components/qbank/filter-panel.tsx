@@ -7,7 +7,10 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "../ui/scroll-area";
 import * as React from "react";
-import type { SortType } from "./filter-sheet"; // استيراد النوع نفسه
+import type { SortType } from "./filter-sheet";
+
+// keep in sync with page.tsx
+const RECENT_DAYS = 10;
 
 const questionTypes = [
   { id: "mcq", label: "Multiple Choice" },
@@ -15,22 +18,21 @@ const questionTypes = [
 ];
 
 const quizzes = [
-    { id: 'all', label: 'All Questions' },
-    { id: 'quiz1', label: 'Quiz 1 (1-115)' },
-    { id: 'quiz2', label: 'Quiz 2 (116-230)' },
-    { id: 'quiz3', label: 'Quiz 3 (231-345)' },
-    { id: 'quiz4', label: 'Quiz 4 (346-460)' },
-    { id: 'quiz5', label: 'Quiz 5 (461-575)' },
-    { id: 'quiz6', label: 'Quiz 6 (576+)' },
+  { id: "all", label: "All Questions" },
+  { id: "quiz1", label: "Quiz 1 (1-115)" },
+  { id: "quiz2", label: "Quiz 2 (116-230)" },
+  { id: "quiz3", label: "Quiz 3 (231-345)" },
+  { id: "quiz4", label: "Quiz 4 (346-460)" },
+  { id: "quiz5", label: "Quiz 5 (461-575)" },
+  { id: "quiz6", label: "Quiz 6 (576+)" },
 ];
-
 
 type FilterPanelProps = {
   filters: any;
   setFilters: (filters: any) => void;
   chapters: string[];
-  sort: SortType; // <-- استخدم SortType
-  setSort: React.Dispatch<React.SetStateAction<SortType>>; // <-- Dispatch متوافق
+  sort: SortType;
+  setSort: React.Dispatch<React.SetStateAction<SortType>>;
   onCloseSheet: () => void;
 };
 
@@ -52,26 +54,21 @@ export default function FilterPanel({
 
   const handleSwitchChange = (filterName: string, checked: boolean) => {
     setFilters({ ...filters, [filterName]: checked });
-    if (filterName === "showSavedOnly") {
+    if (filterName === "showSavedOnly" || filterName === "recentOnly") {
       onCloseSheet();
     }
   };
 
   const handleSelectChange = (filterName: string, value: string) => {
     setFilters({ ...filters, [filterName]: value });
-    if (filterName === "quiz") {
-      onCloseSheet();
-    }
+    if (filterName === "quiz") onCloseSheet();
   };
 
   return (
     <div className="space-y-6 p-4">
       <div className="space-y-2">
         <Label className="font-semibold text-foreground">Sort By</Label>
-        <Select
-          value={sort}
-          onValueChange={(val) => setSort(val as SortType)} // <-- تحويل string إلى SortType
-        >
+        <Select value={sort} onValueChange={(val) => setSort(val as SortType)}>
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
@@ -87,10 +84,7 @@ export default function FilterPanel({
 
       <div className="space-y-2">
         <Label className="font-semibold text-foreground">Quiz</Label>
-        <Select
-          value={filters.quiz}
-          onValueChange={(value) => handleSelectChange("quiz", value)}
-        >
+        <Select value={filters.quiz} onValueChange={(value) => handleSelectChange("quiz", value)}>
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select a quiz" />
           </SelectTrigger>
@@ -149,12 +143,12 @@ export default function FilterPanel({
           />
         </div>
 
-        {/* Latest Added (Last 30 Days) */}
+        {/* Latest Added (Last 10 Days)  🔽 */}
         <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
           <Label htmlFor="recent-only" className="flex flex-col space-y-1">
-            <span>Latest Added (Last 30 Days)</span>
+            <span>Latest Added (Last {RECENT_DAYS} Days)</span>
             <span className="font-normal leading-snug text-gray-400">
-              Show only questions added within the last month.
+              Show only questions added within the last {RECENT_DAYS} days.
             </span>
           </Label>
           <Switch

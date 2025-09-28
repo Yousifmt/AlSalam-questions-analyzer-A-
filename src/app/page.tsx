@@ -29,6 +29,9 @@ import Footer from "@/components/qbank/footer";
 
 const EXAM_QUESTION_COUNT = 90;
 
+// 🔹 use one source of truth for “recent”
+const RECENT_DAYS = 10;
+
 export type ExamMode = "during" | "after";
 export type SortType = "chapter_asc" | "chapter_desc" | "random";
 
@@ -135,7 +138,7 @@ export default function Home() {
       (a, b) => getChapterNumber(a.chapter) - getChapterNumber(b.chapter)
     );
 
-    // 2) Apply quiz filter (UPDATED RANGES)
+    // 2) Apply quiz filter
     if (filters.quiz !== "all") {
       const quizNumber = parseInt(filters.quiz.replace("quiz", ""), 10);
 
@@ -159,24 +162,21 @@ export default function Home() {
           startIndex = 460;
           endIndex = 575;
         } else {
-          // Quiz 6
           startIndex = 575;
           endIndex = chapterSortedQuestions.length;
         }
 
         tempQuestions = chapterSortedQuestions.slice(startIndex, endIndex);
       } else {
-        // Fallback: if quiz value is unexpected, keep full sorted list
         tempQuestions = chapterSortedQuestions;
       }
     } else {
       tempQuestions = chapterSortedQuestions;
     }
 
-    // 3) Filter recentOnly (last 30 days)
+    // 3) Filter recentOnly (last 10 days)  🔽
     if (filters.recentOnly) {
-      const cutoff = new Date();
-      cutoff.setMonth(cutoff.getMonth() - 1);
+      const cutoff = new Date(Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000);
       tempQuestions = tempQuestions.filter((q) => {
         const d = getCreatedAtDate((q as any).createdAt);
         return d ? d >= cutoff : false;

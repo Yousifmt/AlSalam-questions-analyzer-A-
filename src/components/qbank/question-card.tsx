@@ -42,7 +42,10 @@ type QuestionCardProps = {
   userAnswer: string | string[] | null;
 };
 
-// 🔹 helpers to detect "recent" (last 30 days)
+// 🔹 “NEW” badge window (days)
+const NEW_BADGE_DAYS = 10;
+
+// helpers to detect "recent"
 const getCreatedAtDate = (val: any): Date | null => {
   if (!val) return null;
   if (typeof val?.toDate === "function") {
@@ -51,12 +54,12 @@ const getCreatedAtDate = (val: any): Date | null => {
   const d = new Date(val);
   return isNaN(d.getTime()) ? null : d;
 };
-const isRecent = (createdAt: any, days = 30) => {
+
+const isRecent = (createdAt: any, days = NEW_BADGE_DAYS) => {
   const d = getCreatedAtDate(createdAt);
   if (!d) return false;
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  return d >= cutoff;
+  const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
+  return d.getTime() >= cutoffMs;
 };
 
 export default function QuestionCard({
@@ -86,7 +89,7 @@ export default function QuestionCard({
   const [isAnswered, setIsAnswered] = React.useState(false);
 
   const isSaved = savedQuestionIds.includes(question.id);
-  const isNew = isRecent((question as any).createdAt, 30); // 👈 NEW
+  const isNew = isRecent((question as any).createdAt); // 👈 last 10 days
 
   // Reset answered state if the question changes or we enter/exit exam mode
   React.useEffect(() => {
@@ -266,9 +269,7 @@ export default function QuestionCard({
             <CardTitle className="font-normal text-base leading-relaxed">
               {questionNumber && <span className="font-bold mr-2">{questionNumber}.</span>}
               {cleanQuestionText}
-              {isNew && (
-                <Badge className="ml-2 uppercase">New</Badge>
-              )}
+              {isNew && <Badge className="ml-2 uppercase">New</Badge>}
             </CardTitle>
             <div className="flex items-center gap-2 pl-4">
               {similarityScore && (

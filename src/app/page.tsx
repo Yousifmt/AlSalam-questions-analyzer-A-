@@ -29,7 +29,7 @@ import Footer from "@/components/qbank/footer";
 
 const EXAM_QUESTION_COUNT = 90;
 
-// 🔹 use one source of truth for “recent”
+// 🔹 one source of truth for “recent”
 const RECENT_DAYS = 10;
 
 export type ExamMode = "during" | "after";
@@ -138,33 +138,25 @@ export default function Home() {
       (a, b) => getChapterNumber(a.chapter) - getChapterNumber(b.chapter)
     );
 
-    // 2) Apply quiz filter
+    // 2) Apply quiz filter (45 per quiz 1-5, quiz 6 = remaining)
     if (filters.quiz !== "all") {
       const quizNumber = parseInt(filters.quiz.replace("quiz", ""), 10);
-
       if (quizNumber >= 1 && quizNumber <= 6) {
+        const QUIZ_SIZE = 45;
         let startIndex = 0;
         let endIndex = chapterSortedQuestions.length;
 
-        if (quizNumber === 1) {
-          startIndex = 0;
-          endIndex = 115;
-        } else if (quizNumber === 2) {
-          startIndex = 115;
-          endIndex = 230;
-        } else if (quizNumber === 3) {
-          startIndex = 230;
-          endIndex = 345;
-        } else if (quizNumber === 4) {
-          startIndex = 345;
-          endIndex = 460;
-        } else if (quizNumber === 5) {
-          startIndex = 460;
-          endIndex = 575;
-        } else {
-          startIndex = 575;
-          endIndex = chapterSortedQuestions.length;
+        if (quizNumber >= 1 && quizNumber <= 5) {
+          startIndex = (quizNumber - 1) * QUIZ_SIZE; // 0,45,90,135,180
+          endIndex = Math.min(startIndex + QUIZ_SIZE, chapterSortedQuestions.length);
+        } else if (quizNumber === 6) {
+          startIndex = 5 * QUIZ_SIZE; // 225
+          endIndex = chapterSortedQuestions.length; // remaining (45 or more)
         }
+
+        // Guard against negative/overflow indices
+        startIndex = Math.max(0, Math.min(startIndex, chapterSortedQuestions.length));
+        endIndex = Math.max(startIndex, Math.min(endIndex, chapterSortedQuestions.length));
 
         tempQuestions = chapterSortedQuestions.slice(startIndex, endIndex);
       } else {
@@ -174,7 +166,7 @@ export default function Home() {
       tempQuestions = chapterSortedQuestions;
     }
 
-    // 3) Filter recentOnly (last 10 days)  🔽
+    // 3) Filter recentOnly (last 10 days)
     if (filters.recentOnly) {
       const cutoff = new Date(Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000);
       tempQuestions = tempQuestions.filter((q) => {

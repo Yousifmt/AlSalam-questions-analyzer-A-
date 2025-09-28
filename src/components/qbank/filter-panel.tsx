@@ -17,14 +17,15 @@ const questionTypes = [
   { id: "checkbox", label: "Checkboxes" },
 ];
 
+// Updated labels for 45-per-quiz scheme
 const quizzes = [
   { id: "all", label: "All Questions" },
-  { id: "quiz1", label: "Quiz 1 (1-115)" },
-  { id: "quiz2", label: "Quiz 2 (116-230)" },
-  { id: "quiz3", label: "Quiz 3 (231-345)" },
-  { id: "quiz4", label: "Quiz 4 (346-460)" },
-  { id: "quiz5", label: "Quiz 5 (461-575)" },
-  { id: "quiz6", label: "Quiz 6 (576+)" },
+  { id: "quiz1", label: "Quiz 1 (1–45)" },
+  { id: "quiz2", label: "Quiz 2 (46–90)" },
+  { id: "quiz3", label: "Quiz 3 (91–135)" },
+  { id: "quiz4", label: "Quiz 4 (136–180)" },
+  { id: "quiz5", label: "Quiz 5 (181–225)" },
+  { id: "quiz6", label: "Quiz 6 (226+ / remaining)" },
 ];
 
 type FilterPanelProps = {
@@ -143,7 +144,7 @@ export default function FilterPanel({
           />
         </div>
 
-        {/* Latest Added (Last 10 Days)  🔽 */}
+        {/* Latest Added (Last {RECENT_DAYS} Days) */}
         <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
           <Label htmlFor="recent-only" className="flex flex-col space-y-1">
             <span>Latest Added (Last {RECENT_DAYS} Days)</span>

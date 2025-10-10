@@ -1,3 +1,4 @@
+// src/app/page.tsx
 "use client";
 
 import * as React from "react";
@@ -25,15 +26,21 @@ import {
   AlertDialogFooter,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import Footer from "@/components/qbank/footer";
 
 const EXAM_QUESTION_COUNT = 90;
-
-// 🔹 one source of truth for “recent”
 const RECENT_DAYS = 10;
 
 export type ExamMode = "during" | "after";
 export type SortType = "chapter_asc" | "chapter_desc" | "random";
+export type CoreType = "core1" | "core2";
 
 const initialFilters = {
   chapter: [] as string[],
@@ -43,19 +50,115 @@ const initialFilters = {
   recentOnly: false,
 };
 
-// Normalize createdAt to JS Date (supports Firestore Timestamp or string/date)
 const getCreatedAtDate = (val: any): Date | null => {
   if (!val) return null;
   if (typeof val?.toDate === "function") {
     try {
       return val.toDate();
-    } catch {
-      /* noop */
-    }
+    } catch {}
   }
   const d = new Date(val);
   return isNaN(d.getTime()) ? null : d;
 };
+
+// -------- Core Select Dialog (centered using Dialog) ----------
+// مودال يدوي: Overlay + صندوق متمركز بالقوة
+// مودال يدوي مهيّأ للجوال: Overlay + صندوق متمركز ومرن
+function CoreSelectDialog({
+  isOpen,
+  onChoose,
+  onClose,
+}: {
+  isOpen: boolean;
+  onChoose: (core: CoreType) => void;
+  onClose: () => void;
+}) {
+  React.useEffect(() => {
+    if (!isOpen) return;
+    // إغلاق بـ ESC ومنع سكرول الخلفية
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <>
+      {/* Overlay */}
+      <div
+        className="fixed inset-0 z-[999] bg-black/60"
+        onClick={onClose}
+      />
+
+      {/* محتوى متمركز – يناسب الموبايل */}
+      <div
+        className="
+          fixed z-[1000] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
+          w-[min(92vw,420px)] max-h-[80vh]
+          rounded-2xl border border-white/10 bg-[#0f1642] text-white shadow-2xl
+          px-[max(1rem,env(safe-area-inset-left))] py-4
+        "
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="core-dialog-title"
+        aria-describedby="core-dialog-desc"
+      >
+        <div className="relative">
+          <h2 id="core-dialog-title" className="text-lg font-semibold">Select Core</h2>
+          <p id="core-dialog-desc" className="mt-1 text-sm text-white/70">
+            Choose which question set you want to view.
+          </p>
+
+          {/* زر إغلاق (Hover أحمر) */}
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            className="absolute right-0 top-0 inline-flex h-8 w-8 items-center justify-center rounded-full
+                       bg-white/10 text-white hover:bg-red-500 focus-visible:ring-2 focus-visible:ring-red-500
+                       transition-colors"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* لف داخلي إذا طال المحتوى */}
+        <div className="mt-4 overflow-auto">
+          {/* الأزرار: جنب بعض وتلتف على الشاشات الضيقة */}
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              className="flex-1 min-w-[120px] h-12 rounded-xl bg-white/10 text-white text-base
+                         hover:bg-orange-500 focus-visible:outline-none focus-visible:ring-2
+                         focus-visible:ring-orange-500 transition-colors"
+              onClick={() => onChoose("core1")}
+            >
+              Core&nbsp;1
+            </button>
+            <button
+              type="button"
+              className="flex-1 min-w-[120px] h-12 rounded-xl bg-white/10 text-white text-base
+                         hover:bg-orange-500 focus-visible:outline-none focus-visible:ring-2
+                         focus-visible:ring-orange-500 transition-colors"
+              onClick={() => onChoose("core2")}
+            >
+              Core&nbsp;2
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+
 
 export default function Home() {
   const [questions, setQuestions] = React.useState<Question[]>([]);
@@ -81,13 +184,27 @@ export default function Home() {
   const [examScore, setExamScore] = React.useState(0);
   const [isResultsDialogOpen, setIsResultsDialogOpen] = React.useState(false);
 
+  // Core
+  const [selectedCore, setSelectedCore] = React.useState<CoreType | null>(null);
+  const [isCoreDialogOpen, setIsCoreDialogOpen] = React.useState(false);
+
   const isMobile = useIsMobile();
   const [showBackToTop, setShowBackToTop] = React.useState(false);
   const pageRef = React.useRef<HTMLDivElement>(null);
 
   const [savedQuestionIds, setSavedQuestionIds] = React.useState<string[]>([]);
 
-  // Fetch questions from Firestore
+  // Always open core dialog on first mount (ask every visit)
+  React.useEffect(() => {
+    setIsCoreDialogOpen(true);
+  }, []);
+
+  const chooseCore = (core: CoreType) => {
+    setSelectedCore(core);
+    setIsCoreDialogOpen(false);
+  };
+
+  // Fetch questions
   const fetchQuestions = React.useCallback(async () => {
     setIsLoading(true);
     try {
@@ -97,7 +214,13 @@ export default function Home() {
       const questionsData = querySnapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as Question)
       );
-      setQuestions(questionsData);
+
+      // Default core = core1 if missing (UI only)
+      const normalized = questionsData.map((qq) => ({
+        ...qq,
+        core: (qq as any).core ?? "core1",
+      }));
+      setQuestions(normalized);
     } catch (error) {
       console.error("Error fetching questions: ", error);
     } finally {
@@ -109,64 +232,59 @@ export default function Home() {
     fetchQuestions();
   }, [fetchQuestions]);
 
-  // Get all chapters sorted numerically
+  // Chapters
   const allChapters = React.useMemo(() => {
     const chapters = new Set<string>();
     questions.forEach((q) => q.chapter && chapters.add(q.chapter));
-
     const getChapterNumber = (chapterString: string) => {
       const match = chapterString?.match?.(/Chapter (\d+)/);
       return match ? parseInt(match[1], 10) : Infinity;
     };
-
     return Array.from(chapters).sort((a, b) => getChapterNumber(a) - getChapterNumber(b));
   }, [questions]);
 
-  // Apply filters, search, and sorting
+  // Filters + sort
   React.useEffect(() => {
-    if (isExamMode) return; // Skip filtering during exam mode
+    if (isExamMode) return;
+    if (!selectedCore) {
+      setFilteredQuestions([]);
+      return;
+    }
 
-    let tempQuestions = [...questions];
+    let tempQuestions = questions.filter((q) => ((q as any).core ?? "core1") === selectedCore);
 
     const getChapterNumber = (chapterString: string) => {
       const match = chapterString?.match?.(/Chapter (\d+)/);
       return match ? parseInt(match[1], 10) : Infinity;
     };
 
-    // 1) Sort by chapter for quiz slicing
-    const chapterSortedQuestions = [...tempQuestions].sort(
+    const chapterSorted = [...tempQuestions].sort(
       (a, b) => getChapterNumber(a.chapter) - getChapterNumber(b.chapter)
     );
 
-    // 2) Apply quiz filter (45 per quiz 1-5, quiz 6 = remaining)
     if (filters.quiz !== "all") {
       const quizNumber = parseInt(filters.quiz.replace("quiz", ""), 10);
       if (quizNumber >= 1 && quizNumber <= 6) {
         const QUIZ_SIZE = 45;
         let startIndex = 0;
-        let endIndex = chapterSortedQuestions.length;
-
+        let endIndex = chapterSorted.length;
         if (quizNumber >= 1 && quizNumber <= 5) {
-          startIndex = (quizNumber - 1) * QUIZ_SIZE; // 0,45,90,135,180
-          endIndex = Math.min(startIndex + QUIZ_SIZE, chapterSortedQuestions.length);
+          startIndex = (quizNumber - 1) * QUIZ_SIZE;
+          endIndex = Math.min(startIndex + QUIZ_SIZE, chapterSorted.length);
         } else if (quizNumber === 6) {
-          startIndex = 5 * QUIZ_SIZE; // 225
-          endIndex = chapterSortedQuestions.length; // remaining (45 or more)
+          startIndex = 5 * QUIZ_SIZE;
+          endIndex = chapterSorted.length;
         }
-
-        // Guard against negative/overflow indices
-        startIndex = Math.max(0, Math.min(startIndex, chapterSortedQuestions.length));
-        endIndex = Math.max(startIndex, Math.min(endIndex, chapterSortedQuestions.length));
-
-        tempQuestions = chapterSortedQuestions.slice(startIndex, endIndex);
+        startIndex = Math.max(0, Math.min(startIndex, chapterSorted.length));
+        endIndex = Math.max(startIndex, Math.min(endIndex, chapterSorted.length));
+        tempQuestions = chapterSorted.slice(startIndex, endIndex);
       } else {
-        tempQuestions = chapterSortedQuestions;
+        tempQuestions = chapterSorted;
       }
     } else {
-      tempQuestions = chapterSortedQuestions;
+      tempQuestions = chapterSorted;
     }
 
-    // 3) Filter recentOnly (last 10 days)
     if (filters.recentOnly) {
       const cutoff = new Date(Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000);
       tempQuestions = tempQuestions.filter((q) => {
@@ -175,18 +293,15 @@ export default function Home() {
       });
     }
 
-    // 4) Search query
     if (searchQuery) {
       const sq = searchQuery.toLowerCase();
       tempQuestions = tempQuestions.filter((q) => q.questionText?.toLowerCase().includes(sq));
     }
 
-    // 5) Saved only
     if (filters.showSavedOnly) {
       tempQuestions = tempQuestions.filter((q) => savedQuestionIds.includes(q.id));
     }
 
-    // 6) Chapter & Type filters
     if (filters.chapter.length > 0) {
       tempQuestions = tempQuestions.filter((q) => filters.chapter.includes(q.chapter));
     }
@@ -194,24 +309,27 @@ export default function Home() {
       tempQuestions = tempQuestions.filter((q) => filters.questionType.includes(q.questionType));
     }
 
-    // 7) Final sorting
     const sortedQuestions = [...tempQuestions].sort((a, b) => {
+      const n = (s: string) => {
+        const m = s?.match?.(/Chapter (\d+)/);
+        return m ? parseInt(m[1], 10) : Infinity;
+      };
       switch (sort) {
         case "chapter_desc":
-          return getChapterNumber(b.chapter) - getChapterNumber(a.chapter);
+          return n(b.chapter) - n(a.chapter);
         case "random":
           return Math.random() - 0.5;
         case "chapter_asc":
         default:
-          return 0; // keep current order
+          return 0;
       }
     });
 
     setFilteredQuestions(sortedQuestions);
-    setUserAnswers({}); // Reset answers when filters change
-  }, [searchQuery, filters, questions, sort, isExamMode, savedQuestionIds]);
+    setUserAnswers({});
+  }, [searchQuery, filters, questions, sort, isExamMode, savedQuestionIds, selectedCore]);
 
-  // Scroll listener for back-to-top button
+  // Back-to-top
   React.useEffect(() => {
     const onWinScroll = () => setShowBackToTop(window.scrollY > 200);
     window.addEventListener("scroll", onWinScroll, { passive: true });
@@ -225,7 +343,8 @@ export default function Home() {
 
   // Exam handlers
   const startExam = (mode: ExamMode) => {
-    const shuffled = [...questions].sort(() => 0.5 - Math.random());
+    const pool = questions.filter((q) => ((q as any).core ?? "core1") === (selectedCore ?? "core1"));
+    const shuffled = [...pool].sort(() => 0.5 - Math.random());
     const examQuestions = shuffled.slice(0, EXAM_QUESTION_COUNT);
     setFilteredQuestions(examQuestions);
 
@@ -251,14 +370,11 @@ export default function Home() {
     filteredQuestions.forEach((q) => {
       const userAnswer = userAnswers[q.id];
       if (!userAnswer) return;
-
       if (Array.isArray(q.correctAnswer)) {
         if (Array.isArray(userAnswer) && userAnswer.length === q.correctAnswer.length) {
-          const sortedUserAnswers = [...userAnswer].sort();
-          const sortedCorrectAnswers = [...q.correctAnswer].sort();
-          if (sortedUserAnswers.every((val, index) => val === sortedCorrectAnswers[index])) {
-            score++;
-          }
+          const sU = [...userAnswer].sort();
+          const sC = [...q.correctAnswer].sort();
+          if (sU.every((v, i) => v === sC[i])) score++;
         }
       } else {
         if (userAnswer === q.correctAnswer) score++;
@@ -281,17 +397,17 @@ export default function Home() {
     const combinedQuestions = [...questions];
     newQuestions.forEach((newQ) => {
       const index = combinedQuestions.findIndex((q) => q.id === newQ.id);
+      const withCore = { ...(newQ as any), core: (newQ as any).core ?? "core1" };
       if (index !== -1) {
-        combinedQuestions[index] = newQ;
+        combinedQuestions[index] = withCore as any;
       } else {
-        combinedQuestions.push(newQ);
+        combinedQuestions.push(withCore as any);
       }
     });
-
     combinedQuestions.sort(
       (a: any, b: any) =>
-        (getCreatedAtDate(b?.createdAt)?.getTime() ?? 0) -
-        (getCreatedAtDate(a?.createdAt)?.getTime() ?? 0)
+        (getCreatedAtDate(a?.createdAt)?.getTime() ?? 0) -
+        (getCreatedAtDate(b?.createdAt)?.getTime() ?? 0)
     );
     setQuestions(combinedQuestions);
   };
@@ -301,7 +417,11 @@ export default function Home() {
   };
 
   const handleQuestionUpdated = (updatedQuestion: Question) => {
-    setQuestions(questions.map((q) => (q.id === updatedQuestion.id ? updatedQuestion : q)));
+    setQuestions(
+      questions.map((q) =>
+        q.id === updatedQuestion.id ? ({ ...(updatedQuestion as any), core: (updatedQuestion as any).core ?? "core1" } as any) : q
+      )
+    );
   };
 
   const toggleSaveQuestion = (questionId: string) => {
@@ -310,10 +430,7 @@ export default function Home() {
     );
   };
 
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
   const clearAllFilters = () => {
     setFilters({ ...initialFilters });
     setSort("chapter_asc");
@@ -356,6 +473,13 @@ export default function Home() {
                 onResetView={resetView}
                 filteredQuestions={filteredQuestions}
               />
+              {/* quick core switch */}
+              <div className="absolute left-4 -bottom-4 z-20">
+                <Button variant="outline" size="sm" onClick={() => setIsCoreDialogOpen(true)}>
+                  {selectedCore ? (selectedCore === "core1" ? "Core 1" : "Core 2") : "Select Core"}
+                </Button>
+              </div>
+
               {isMobile && (
                 <Button
                   variant="outline"
@@ -385,9 +509,9 @@ export default function Home() {
             )}
           </div>
 
-          {/* Main Content */}
+          {/* Main */}
           <main className="flex-1">
-            {isLoading ? (
+            {isLoading || !selectedCore ? (
               <div className="p-4 space-y-4 max-w-full lg:max-w-screen-lg mx-auto">
                 <Skeleton className="h-32 w-full" />
                 <Skeleton className="h-32 w-full" />
@@ -451,6 +575,13 @@ export default function Home() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Core select dialog (centered) */}
+        <CoreSelectDialog
+          isOpen={isCoreDialogOpen}
+          onChoose={chooseCore}
+          onClose={() => setIsCoreDialogOpen(false)}
+        />
       </div>
     </LockProvider>
   );

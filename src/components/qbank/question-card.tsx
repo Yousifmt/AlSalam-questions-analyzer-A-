@@ -42,14 +42,12 @@ type QuestionCardProps = {
   userAnswer: string | string[] | null;
 };
 
-// 🔹 “NEW” badge window (days)
 const NEW_BADGE_DAYS = 10;
 
-// helpers to detect "recent"
 const getCreatedAtDate = (val: any): Date | null => {
   if (!val) return null;
   if (typeof val?.toDate === "function") {
-    try { return val.toDate(); } catch { /* ignore */ }
+    try { return val.toDate(); } catch {}
   }
   const d = new Date(val);
   return isNaN(d.getTime()) ? null : d;
@@ -89,14 +87,13 @@ export default function QuestionCard({
   const [isAnswered, setIsAnswered] = React.useState(false);
 
   const isSaved = savedQuestionIds.includes(question.id);
-  const isNew = isRecent((question as any).createdAt); // 👈 last 10 days
+  const isNew = isRecent((question as any).createdAt);
+  const coreLabel = (question.core ?? "core1") === "core1" ? "Core 1" : "Core 2";
 
-  // Reset answered state if the question changes or we enter/exit exam mode
   React.useEffect(() => {
     setIsAnswered(false);
   }, [question, isExamMode]);
 
-  // Auto-submit checkbox answers in certain modes
   React.useEffect(() => {
     if (
       question.questionType === "checkbox" &&
@@ -162,12 +159,14 @@ export default function QuestionCard({
     setIsCategorizing(true);
     try {
       const categorizedQuestionData = await handleCategorizeQuestion(question);
-      const result = await handleUpdateQuestion(categorizedQuestionData);
+      // لو ما فيه core خله core1
+      const withCore = { ...categorizedQuestionData, core: categorizedQuestionData.core ?? "core1" as const };
+      const result = await handleUpdateQuestion(withCore);
       if (result.success) {
-        onUpdate(categorizedQuestionData);
+        onUpdate(withCore);
         toast({
           title: "Categorized!",
-          description: `Question assigned to: ${categorizedQuestionData.chapter}`,
+          description: `Question assigned to: ${withCore.chapter}`,
         });
       } else {
         throw new Error("Failed to save the updated question to the database.");
@@ -199,7 +198,6 @@ export default function QuestionCard({
         : [...currentSelection, option];
 
       const correctAnswersCount = Array.isArray(question.correctAnswer) ? question.correctAnswer.length : 1;
-
       if (newAnswer.length >= correctAnswersCount && !isExamFinished) {
         if ((isExamMode && examAnswerMode === "during") || !isExamMode) {
           setIsAnswered(true);
@@ -209,7 +207,7 @@ export default function QuestionCard({
       return;
     }
 
-    if (onAnswerChange) onAnswerChange(question.id, newAnswer);
+    onAnswerChange?.(question.id, newAnswer);
   };
 
   const showInstantResult =
@@ -272,6 +270,15 @@ export default function QuestionCard({
               {isNew && <Badge className="ml-2 uppercase">New</Badge>}
             </CardTitle>
             <div className="flex items-center gap-2 pl-4">
+              {/* NEW: إظهار الكور */}
+<Badge
+  variant="secondary"
+  className="text-secondary-foreground whitespace-nowrap shrink-0 leading-none px-2 py-0.5"
+>
+  {coreLabel}
+</Badge>
+
+
               {similarityScore && (
                 <Badge variant={similarityScore > 0.8 ? "default" : "secondary"}>
                   Similarity: {(similarityScore * 100).toFixed(0)}%

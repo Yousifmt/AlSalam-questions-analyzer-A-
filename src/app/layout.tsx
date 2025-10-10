@@ -8,6 +8,8 @@ export const metadata: Metadata = {
   title: 'Al-Salam Questions Analyzer',
   description: 'A smart questions analyzer for Al-Salam Training Center',
 };
+// src/types.ts
+
 
 export default function RootLayout({
   children,

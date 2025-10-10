@@ -26,13 +26,6 @@ import {
   AlertDialogFooter,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import Footer from "@/components/qbank/footer";
 
 const EXAM_QUESTION_COUNT = 90;
@@ -61,30 +54,37 @@ const getCreatedAtDate = (val: any): Date | null => {
   return isNaN(d.getTime()) ? null : d;
 };
 
-// -------- Core Select Dialog (centered using Dialog) ----------
-// مودال يدوي: Overlay + صندوق متمركز بالقوة
-// مودال يدوي مهيّأ للجوال: Overlay + صندوق متمركز ومرن
+/** Core Select Dialog
+ * - First open (showClose=false): no X, no overlay close, Esc disabled.
+ * - Later opens (showClose=true): shows X, overlay click & Esc close enabled.
+ * - Always centered, mobile friendly, safe-area padding.
+ */
 function CoreSelectDialog({
   isOpen,
   onChoose,
   onClose,
+  showClose,
 }: {
   isOpen: boolean;
   onChoose: (core: CoreType) => void;
   onClose: () => void;
+  showClose: boolean;
 }) {
   React.useEffect(() => {
     if (!isOpen) return;
-    // إغلاق بـ ESC ومنع سكرول الخلفية
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showClose) onClose();
+    };
     document.addEventListener("keydown", onKey);
+
+    // Prevent background scroll while open
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, showClose]);
 
   if (!isOpen) return null;
 
@@ -93,10 +93,9 @@ function CoreSelectDialog({
       {/* Overlay */}
       <div
         className="fixed inset-0 z-[999] bg-black/60"
-        onClick={onClose}
+        onClick={showClose ? onClose : undefined}
       />
-
-      {/* محتوى متمركز – يناسب الموبايل */}
+      {/* Dialog */}
       <div
         className="
           fixed z-[1000] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
@@ -111,43 +110,46 @@ function CoreSelectDialog({
         aria-describedby="core-dialog-desc"
       >
         <div className="relative">
-          <h2 id="core-dialog-title" className="text-lg font-semibold">Select Core</h2>
+          <h2 id="core-dialog-title" className="text-lg font-semibold">
+            Select Core
+          </h2>
           <p id="core-dialog-desc" className="mt-1 text-sm text-white/70">
             Choose which question set you want to view.
           </p>
 
-          {/* زر إغلاق (Hover أحمر) */}
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            className="absolute right-0 top-0 inline-flex h-8 w-8 items-center justify-center rounded-full
-                       bg-white/10 text-white hover:bg-red-500 focus-visible:ring-2 focus-visible:ring-red-500
-                       transition-colors"
-          >
-            ×
-          </button>
+          {/* Close button appears only on later opens */}
+          {showClose && (
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={onClose}
+              className="absolute right-0 top-0 inline-flex h-8 w-8 items-center justify-center rounded-full
+                         bg-white/10 text-white hover:bg-red-500 focus-visible:ring-2 focus-visible:ring-red-500
+                         transition-colors"
+            >
+              ×
+            </button>
+          )}
         </div>
 
-        {/* لف داخلي إذا طال المحتوى */}
-        <div className="mt-4 overflow-auto">
-          {/* الأزرار: جنب بعض وتلتف على الشاشات الضيقة */}
+        {/* Actions */}
+        <div className="mt-4">
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
+              onClick={() => onChoose("core1")}
               className="flex-1 min-w-[120px] h-12 rounded-xl bg-white/10 text-white text-base
                          hover:bg-orange-500 focus-visible:outline-none focus-visible:ring-2
                          focus-visible:ring-orange-500 transition-colors"
-              onClick={() => onChoose("core1")}
             >
               Core&nbsp;1
             </button>
             <button
               type="button"
+              onClick={() => onChoose("core2")}
               className="flex-1 min-w-[120px] h-12 rounded-xl bg-white/10 text-white text-base
                          hover:bg-orange-500 focus-visible:outline-none focus-visible:ring-2
                          focus-visible:ring-orange-500 transition-colors"
-              onClick={() => onChoose("core2")}
             >
               Core&nbsp;2
             </button>
@@ -157,8 +159,6 @@ function CoreSelectDialog({
     </>
   );
 }
-
-
 
 export default function Home() {
   const [questions, setQuestions] = React.useState<Question[]>([]);
@@ -184,24 +184,30 @@ export default function Home() {
   const [examScore, setExamScore] = React.useState(0);
   const [isResultsDialogOpen, setIsResultsDialogOpen] = React.useState(false);
 
-  // Core
+  // Core state
   const [selectedCore, setSelectedCore] = React.useState<CoreType | null>(null);
   const [isCoreDialogOpen, setIsCoreDialogOpen] = React.useState(false);
+  const [isInitialCoreOpen, setIsInitialCoreOpen] = React.useState(true); // first time flag
 
   const isMobile = useIsMobile();
   const [showBackToTop, setShowBackToTop] = React.useState(false);
   const pageRef = React.useRef<HTMLDivElement>(null);
-
   const [savedQuestionIds, setSavedQuestionIds] = React.useState<string[]>([]);
 
-  // Always open core dialog on first mount (ask every visit)
+  // First visit: open core picker (no X)
   React.useEffect(() => {
     setIsCoreDialogOpen(true);
+    setIsInitialCoreOpen(true);
   }, []);
 
   const chooseCore = (core: CoreType) => {
     setSelectedCore(core);
     setIsCoreDialogOpen(false);
+    setIsInitialCoreOpen(false); // after first choice, later opens will show X
+    // reset filters/sort when core changes
+    setFilters({ ...initialFilters });
+    setSort("chapter_asc");
+    setShowAllAnswers(false);
   };
 
   // Fetch questions
@@ -214,10 +220,9 @@ export default function Home() {
       const questionsData = querySnapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as Question)
       );
-
-      // Default core = core1 if missing (UI only)
       const normalized = questionsData.map((qq) => ({
         ...qq,
+        // default core if missing (UI-side only)
         core: (qq as any).core ?? "core1",
       }));
       setQuestions(normalized);
@@ -232,18 +237,24 @@ export default function Home() {
     fetchQuestions();
   }, [fetchQuestions]);
 
-  // Chapters
-  const allChapters = React.useMemo(() => {
-    const chapters = new Set<string>();
-    questions.forEach((q) => q.chapter && chapters.add(q.chapter));
-    const getChapterNumber = (chapterString: string) => {
-      const match = chapterString?.match?.(/Chapter (\d+)/);
-      return match ? parseInt(match[1], 10) : Infinity;
-    };
-    return Array.from(chapters).sort((a, b) => getChapterNumber(a) - getChapterNumber(b));
-  }, [questions]);
+  // Filter questions by selected core once (source for chapters/list)
+  const coreFiltered = React.useMemo(() => {
+    const core = selectedCore ?? "core1";
+    return questions.filter((q) => ((q as any).core ?? "core1") === core);
+  }, [questions, selectedCore]);
 
-  // Filters + sort
+  // Chapters based on current core only
+  const chaptersForCore = React.useMemo(() => {
+    const chapters = new Set<string>();
+    coreFiltered.forEach((q) => q.chapter && chapters.add(q.chapter));
+    const num = (s: string) => {
+      const m = s?.match?.(/Chapter (\d+)/);
+      return m ? parseInt(m[1], 10) : Infinity;
+    };
+    return Array.from(chapters).sort((a, b) => num(a) - num(b));
+  }, [coreFiltered]);
+
+  // Apply filters/sort on the coreFiltered list
   React.useEffect(() => {
     if (isExamMode) return;
     if (!selectedCore) {
@@ -251,43 +262,42 @@ export default function Home() {
       return;
     }
 
-    let tempQuestions = questions.filter((q) => ((q as any).core ?? "core1") === selectedCore);
+    let temp = [...coreFiltered];
 
-    const getChapterNumber = (chapterString: string) => {
-      const match = chapterString?.match?.(/Chapter (\d+)/);
-      return match ? parseInt(match[1], 10) : Infinity;
+    const num = (s: string) => {
+      const m = s?.match?.(/Chapter (\d+)/);
+      return m ? parseInt(m[1], 10) : Infinity;
     };
 
-    const chapterSorted = [...tempQuestions].sort(
-      (a, b) => getChapterNumber(a.chapter) - getChapterNumber(b.chapter)
-    );
+    const chapterSorted = [...temp].sort((a, b) => num(a.chapter) - num(b.chapter));
 
+    // quiz slicing (45 per quiz)
     if (filters.quiz !== "all") {
       const quizNumber = parseInt(filters.quiz.replace("quiz", ""), 10);
       if (quizNumber >= 1 && quizNumber <= 6) {
-        const QUIZ_SIZE = 45;
-        let startIndex = 0;
-        let endIndex = chapterSorted.length;
+        const SIZE = 45;
+        let start = 0;
+        let end = chapterSorted.length;
         if (quizNumber >= 1 && quizNumber <= 5) {
-          startIndex = (quizNumber - 1) * QUIZ_SIZE;
-          endIndex = Math.min(startIndex + QUIZ_SIZE, chapterSorted.length);
+          start = (quizNumber - 1) * SIZE;
+          end = Math.min(start + SIZE, chapterSorted.length);
         } else if (quizNumber === 6) {
-          startIndex = 5 * QUIZ_SIZE;
-          endIndex = chapterSorted.length;
+          start = 5 * SIZE;
+          end = chapterSorted.length;
         }
-        startIndex = Math.max(0, Math.min(startIndex, chapterSorted.length));
-        endIndex = Math.max(startIndex, Math.min(endIndex, chapterSorted.length));
-        tempQuestions = chapterSorted.slice(startIndex, endIndex);
+        start = Math.max(0, Math.min(start, chapterSorted.length));
+        end = Math.max(start, Math.min(end, chapterSorted.length));
+        temp = chapterSorted.slice(start, end);
       } else {
-        tempQuestions = chapterSorted;
+        temp = chapterSorted;
       }
     } else {
-      tempQuestions = chapterSorted;
+      temp = chapterSorted;
     }
 
     if (filters.recentOnly) {
       const cutoff = new Date(Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000);
-      tempQuestions = tempQuestions.filter((q) => {
+      temp = temp.filter((q) => {
         const d = getCreatedAtDate((q as any).createdAt);
         return d ? d >= cutoff : false;
       });
@@ -295,28 +305,26 @@ export default function Home() {
 
     if (searchQuery) {
       const sq = searchQuery.toLowerCase();
-      tempQuestions = tempQuestions.filter((q) => q.questionText?.toLowerCase().includes(sq));
+      temp = temp.filter((q) => q.questionText?.toLowerCase().includes(sq));
     }
 
     if (filters.showSavedOnly) {
-      tempQuestions = tempQuestions.filter((q) => savedQuestionIds.includes(q.id));
+      temp = temp.filter((q) => savedQuestionIds.includes(q.id));
     }
 
     if (filters.chapter.length > 0) {
-      tempQuestions = tempQuestions.filter((q) => filters.chapter.includes(q.chapter));
+      temp = temp.filter((q) => filters.chapter.includes(q.chapter));
     }
     if (filters.questionType.length > 0) {
-      tempQuestions = tempQuestions.filter((q) => filters.questionType.includes(q.questionType));
+      temp = temp.filter((q) => filters.questionType.includes(q.questionType));
     }
 
-    const sortedQuestions = [...tempQuestions].sort((a, b) => {
-      const n = (s: string) => {
-        const m = s?.match?.(/Chapter (\d+)/);
-        return m ? parseInt(m[1], 10) : Infinity;
-      };
+    // final sort
+    const sorted = [...temp].sort((a, b) => {
       switch (sort) {
-        case "chapter_desc":
-          return n(b.chapter) - n(a.chapter);
+        case "chapter_desc": {
+          return num(b.chapter) - num(a.chapter);
+        }
         case "random":
           return Math.random() - 0.5;
         case "chapter_asc":
@@ -325,11 +333,11 @@ export default function Home() {
       }
     });
 
-    setFilteredQuestions(sortedQuestions);
+    setFilteredQuestions(sorted);
     setUserAnswers({});
-  }, [searchQuery, filters, questions, sort, isExamMode, savedQuestionIds, selectedCore]);
+  }, [coreFiltered, searchQuery, filters, sort, isExamMode, savedQuestionIds, selectedCore]);
 
-  // Back-to-top
+  // Back to top button visibility
   React.useEffect(() => {
     const onWinScroll = () => setShowBackToTop(window.scrollY > 200);
     window.addEventListener("scroll", onWinScroll, { passive: true });
@@ -341,20 +349,18 @@ export default function Home() {
     setIsExplanationPanelOpen(true);
   };
 
-  // Exam handlers
+  // Exam
   const startExam = (mode: ExamMode) => {
-    const pool = questions.filter((q) => ((q as any).core ?? "core1") === (selectedCore ?? "core1"));
+    const pool = coreFiltered;
     const shuffled = [...pool].sort(() => 0.5 - Math.random());
     const examQuestions = shuffled.slice(0, EXAM_QUESTION_COUNT);
     setFilteredQuestions(examQuestions);
-
     setIsExamMode(true);
     setExamAnswerMode(mode);
     setIsExamFinished(false);
     setUserAnswers({});
     setExamScore(0);
     setShowAllAnswers(false);
-
     setSearchQuery("");
     setFilters({ ...initialFilters });
     setSort("chapter_asc");
@@ -394,22 +400,19 @@ export default function Home() {
   };
 
   const handleQuestionsAdded = (newQuestions: Question[]) => {
-    const combinedQuestions = [...questions];
-    newQuestions.forEach((newQ) => {
-      const index = combinedQuestions.findIndex((q) => q.id === newQ.id);
-      const withCore = { ...(newQ as any), core: (newQ as any).core ?? "core1" };
-      if (index !== -1) {
-        combinedQuestions[index] = withCore as any;
-      } else {
-        combinedQuestions.push(withCore as any);
-      }
+    const combined = [...questions];
+    newQuestions.forEach((nq) => {
+      const idx = combined.findIndex((q) => q.id === nq.id);
+      const withCore = { ...(nq as any), core: (nq as any).core ?? "core1" };
+      if (idx !== -1) combined[idx] = withCore as any;
+      else combined.push(withCore as any);
     });
-    combinedQuestions.sort(
+    combined.sort(
       (a: any, b: any) =>
-        (getCreatedAtDate(a?.createdAt)?.getTime() ?? 0) -
-        (getCreatedAtDate(b?.createdAt)?.getTime() ?? 0)
+        (getCreatedAtDate(b?.createdAt)?.getTime() ?? 0) -
+        (getCreatedAtDate(a?.createdAt)?.getTime() ?? 0)
     );
-    setQuestions(combinedQuestions);
+    setQuestions(combined);
   };
 
   const handleQuestionDeleted = (questionId: string) => {
@@ -419,7 +422,9 @@ export default function Home() {
   const handleQuestionUpdated = (updatedQuestion: Question) => {
     setQuestions(
       questions.map((q) =>
-        q.id === updatedQuestion.id ? ({ ...(updatedQuestion as any), core: (updatedQuestion as any).core ?? "core1" } as any) : q
+        q.id === updatedQuestion.id
+          ? ({ ...(updatedQuestion as any), core: (updatedQuestion as any).core ?? "core1" } as any)
+          : q
       )
     );
   };
@@ -444,7 +449,7 @@ export default function Home() {
           setIsOpen={setIsFilterSheetOpen}
           filters={filters}
           setFilters={setFilters}
-          chapters={allChapters}
+          chapters={chaptersForCore}
           sort={sort}
           setSort={setSort}
           disabled={isExamMode}
@@ -473,9 +478,16 @@ export default function Home() {
                 onResetView={resetView}
                 filteredQuestions={filteredQuestions}
               />
-              {/* quick core switch */}
+              {/* quick core switch (later open -> showClose=true) */}
               <div className="absolute left-4 -bottom-4 z-20">
-                <Button variant="outline" size="sm" onClick={() => setIsCoreDialogOpen(true)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsInitialCoreOpen(false);
+                    setIsCoreDialogOpen(true);
+                  }}
+                >
                   {selectedCore ? (selectedCore === "core1" ? "Core 1" : "Core 2") : "Select Core"}
                 </Button>
               </div>
@@ -556,7 +568,7 @@ export default function Home() {
           onStartExam={startExam}
         />
 
-        {/* Exam Results Dialog */}
+        {/* Exam results */}
         <AlertDialog open={isResultsDialogOpen} onOpenChange={setIsResultsDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -576,11 +588,12 @@ export default function Home() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Core select dialog (centered) */}
+        {/* Core select (showClose depends on first/late open) */}
         <CoreSelectDialog
           isOpen={isCoreDialogOpen}
           onChoose={chooseCore}
           onClose={() => setIsCoreDialogOpen(false)}
+          showClose={!isInitialCoreOpen}
         />
       </div>
     </LockProvider>

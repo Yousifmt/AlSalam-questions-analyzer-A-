@@ -1,25 +1,20 @@
 'use server';
 
-/**
- * @fileOverview An AI agent that categorizes a single exam question into a specific chapter.
- *
- * - categorizeQuestion - A function that handles the question categorization process.
- * - CategorizeQuestionInput - The input type for the categorizeQuestion function.
- * - CategorizeQuestionOutput - The return type for the categorizeQuestion function.
- */
-
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
+import { CORE1_BULLETS, CORE2_BULLETS } from './core-taxonomy';
 
 const CategorizeQuestionInputSchema = z.object({
   questionText: z.string().describe('The text of the question.'),
-  options: z.array(z.string()).optional().describe('The options for the question, if it is a multiple choice question.'),
-  correctAnswer: z.union([z.string(), z.array(z.string())]).optional().describe('The correct answer(s) to the question.'),
+  options: z.array(z.string()).optional().describe('Options for MCQ (if any).'),
+  correctAnswer: z.union([z.string(), z.array(z.string())]).optional().describe('Correct answer(s).'),
+  core: z.enum(['core1', 'core2']).optional(),
 });
 export type CategorizeQuestionInput = z.infer<typeof CategorizeQuestionInputSchema>;
 
 const CategorizeQuestionOutputSchema = z.object({
-  chapter: z.string().describe('The chapter the question belongs to.'),
+  core: z.enum(['core1', 'core2']).describe('Detected or forced core.'),
+  chapter: z.string().describe('Exact chapter/module string from the chosen core list.'),
 });
 export type CategorizeQuestionOutput = z.infer<typeof CategorizeQuestionOutputSchema>;
 
@@ -29,35 +24,31 @@ export async function categorizeQuestion(input: CategorizeQuestionInput): Promis
 
 const prompt = ai.definePrompt({
   name: 'categorizeQuestionPrompt',
-  input: {schema: CategorizeQuestionInputSchema},
-  output: {schema: CategorizeQuestionOutputSchema},
-  prompt: `You are an expert at categorizing exam questions. Your task is to assign the given question to the most appropriate chapter from the list below.
+  input: { schema: CategorizeQuestionInputSchema },
+  output: { schema: CategorizeQuestionOutputSchema },
+  prompt: `
+You are an expert that **first decides the core** then picks **exactly one** chapter from that core's list.
 
-  CRITICAL: You must choose only ONE chapter from this list, and the 'chapter' field in your output JSON must be an EXACT string match to one of the options provided. Do not abbreviate or use only numbers. The subject is always "Cyber Security".
+- If "core" is provided in input, you MUST use that core.
+- If "core" is not provided, infer it:
+  • "core1" — security/IAM/crypto/cloud/resiliency/vuln mgmt/endpoint/app/monitoring/malicious indicators/governance/risk/data protection.
+  • "core2" — Windows configuration/management/support/security, OS install/other OS, SOHO security, security settings, mobile software, data security usage, operational procedures.
 
-  Available Chapters:
-  - Chapter 1: Summarizing Fundamental Security Concepts
-  - Chapter 2: Comparing Threat Types
-  - Chapter 3: Explaining Appropriate Cryptographic Solutions
-  - Chapter 4: Implement Identity and Access Management
-  - Chapter 5: Maintain Enterprise Campus Network Architecture
-  - Chapter 6: Secure Cloud Network Architecture
-  - Chapter 7: Explain Resiliency and Site Security Concepts
-  - Chapter 8: Evaluate Network Security Capabilities
-  - Chapter 9: Explain Vulnerability Management
-  - Chapter 10: Assess Endpoint Security Capabilities
-  - Chapter 11: Enhance Application Security Capabilities
-  - Chapter 12: Explain Alerting and Monitoring Concepts
-  - Chapter 13: Analyze Indicators of Malicious Activity
-  - Chapter 14: Summarize Security Governance Concepts
-  - Chapter 15: Explain Risk Management Processes
-  - Chapter 16: Summarize Data Protection and Compliance Concepts
+CRITICAL RULES:
+- Return JSON with keys: "core" and "chapter".
+- "chapter" MUST be an **EXACT** string from the selected core list (no abbreviations).
+- Choose ONE item only.
 
-  Analyze the following question and determine its chapter.
+Core 1 (use these exact strings):
+${CORE1_BULLETS}
 
-  Question: {{{questionText}}}
-  {{#if options}}Options: {{{options}}}{{/if}}
-  {{#if correctAnswer}}Correct Answer: {{{correctAnswer}}}{{/if}}
+Core 2 (use these exact strings):
+${CORE2_BULLETS}
+
+Question: {{{questionText}}}
+{{#if options}}Options: {{{options}}}{{/if}}
+{{#if correctAnswer}}Correct Answer: {{{correctAnswer}}}{{/if}}
+{{#if core}}Forced core: {{{core}}}{{/if}}
   `,
 });
 
@@ -67,8 +58,8 @@ const categorizeQuestionFlow = ai.defineFlow(
     inputSchema: CategorizeQuestionInputSchema,
     outputSchema: CategorizeQuestionOutputSchema,
   },
-  async input => {
-    const {output} = await prompt(input);
+  async (input) => {
+    const { output } = await prompt(input);
     return output!;
   }
 );

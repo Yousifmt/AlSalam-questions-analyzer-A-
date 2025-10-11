@@ -24,14 +24,16 @@ import {
   type FindDuplicateQuestionsOutput,
 } from '@/ai/flows/find-duplicate-questions';
 
-import {
-  categorizeQuestion,
-} from '@/ai/flows/categorize-question';
+// STRICT, core-locked categorizer (numeric module in allowed range)
+import { categorizeQuestion } from '@/ai/flows/categorize-question';
 
 import { db } from '@/lib/firebase';
 import { collection, doc, writeBatch, deleteDoc, updateDoc } from 'firebase/firestore';
 import { type Question } from '@/types';
 
+/* ──────────────────────────────────────────────────────────────
+   Parsing / Explaining / Similar / Duplicates
+───────────────────────────────────────────────────────────────*/
 export async function handleParseQuestions(
   input: ParseQuestionsInput
 ): Promise<ParseQuestionsOutput> {
@@ -56,35 +58,43 @@ export async function handleFindDuplicateQuestions(
   return await findDuplicateQuestions(input);
 }
 
-export async function handleCategorizeQuestion(
-  question: Question
-): Promise<Question> {
-  if (!question) {
-    throw new Error("No question provided to categorize.");
-  }
+/* ──────────────────────────────────────────────────────────────
+   Categorize (CORE-LOCKED) 
+   - Requires question.core to be provided by the UI (core1|core2)
+   - Calls strict flow that returns a module number inside that core
+   - Converts the number to the exact module title (chapter)
+───────────────────────────────────────────────────────────────*/
+export async function handleCategorizeQuestion(q: Question): Promise<Question> {
+  if (!q) throw new Error('No question provided');
 
-  const result = await categorizeQuestion({
-    questionText: question.questionText,
-    options: question.options,
-    correctAnswer: question.correctAnswer,
+  const { chapter, confidence } = await categorizeQuestion({
+    questionText: q.questionText,
+    options: q.options,
+    correctAnswer: q.correctAnswer,
+    core: (q as any).core as 'core1'|'core2' | undefined, // FORCE the active core
+    currentChapter: q.chapter,                              // allow “keep” on low confidence
   });
 
-  if (!result || !result.chapter) {
-    throw new Error("AI failed to determine a chapter.");
-  }
+  const finalCore = ((q as any).core ?? 'core1') as 'core1'|'core2';
+  const finalChapter =
+    confidence != null && confidence < 0.35    // threshold you can tune
+      ? (q.chapter || chapter)
+      : chapter;
 
-  const updatedQuestion: Question = {
-    ...question,
-    chapter: result.chapter,
-    subject: "Cyber Security",
-    // NEW: لو ما عنده core، ثبّت Core 1 (بناءً على طلبك الحالي)
-    core: question.core ?? "core1",
+  return {
+    ...q,
+    core: finalCore,
+    chapter: finalChapter,
+    subject: q.subject || 'Cyber Security',
   };
-
-  // نرجّع الداتا فقط — الحفظ يكون عبر handleUpdateQuestion
-  return updatedQuestion;
 }
 
+
+/* ──────────────────────────────────────────────────────────────
+   Save new questions
+   - DOES NOT force core. Whatever comes from client is saved.
+   - Adds id/createdAt/updatedAt.
+───────────────────────────────────────────────────────────────*/
 export async function handleSaveQuestions(
   questions: ParseQuestionsOutput
 ): Promise<{ success: boolean; savedQuestions: Question[] }> {
@@ -95,36 +105,40 @@ export async function handleSaveQuestions(
   try {
     const batch = writeBatch(db);
     const questionsCollection = collection(db, 'questions');
-    const now = new Date();
-    const savedQuestions: Question[] = [];
+    const nowIso = new Date().toISOString();
 
-    questions.forEach((question) => {
+    const saved: Question[] = [];
+
+    questions.forEach((q) => {
       const docRef = doc(questionsCollection);
-      const questionData: Question = {
-        ...(question as Omit<Question, 'id' | 'createdAt' | 'updatedAt'>),
+      const toSave: Question = {
+        ...(q as Omit<Question, 'id' | 'createdAt' | 'updatedAt'>),
         id: docRef.id,
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString(),
-        // NEW: كل الإضافات الآن تُحفظ Core 1
-        core: (question as any).core ?? "core1",
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        // IMPORTANT: do NOT override core; trust what UI sends (may be undefined if user didn't pick)
+        core: (q as any).core as 'core1' | 'core2' | undefined,
       };
-      batch.set(docRef, questionData);
-      savedQuestions.push(questionData);
+      batch.set(docRef, toSave);
+      saved.push(toSave);
     });
 
     await batch.commit();
-    return { success: true, savedQuestions };
+    return { success: true, savedQuestions: saved };
   } catch (error) {
-    console.error('Error saving to firestore', error);
+    console.error('Error saving to Firestore', error);
     return { success: false, savedQuestions: [] };
   }
 }
 
+/* ──────────────────────────────────────────────────────────────
+   Delete
+───────────────────────────────────────────────────────────────*/
 export async function handleDeleteQuestion(
   questionId: string
 ): Promise<{ success: boolean }> {
   if (!questionId) {
-    console.error("Delete failed: No question ID provided.");
+    console.error('Delete failed: No question ID provided.');
     return { success: false };
   }
 
@@ -138,23 +152,27 @@ export async function handleDeleteQuestion(
   }
 }
 
-export async function handleUpdateMultipleQuestions(questions: Question[]): Promise<{ success: boolean }> {
+/* ──────────────────────────────────────────────────────────────
+   Batch update
+   - Preserves core as provided; NO defaulting to core1
+   - Adds updatedAt
+───────────────────────────────────────────────────────────────*/
+export async function handleUpdateMultipleQuestions(
+  questions: Question[]
+): Promise<{ success: boolean }> {
   if (!questions || questions.length === 0) {
-    console.error("Update failed: No questions provided.");
+    console.error('Update failed: No questions provided.');
     return { success: false };
   }
 
   try {
     const batch = writeBatch(db);
-    const now = new Date().toISOString();
+    const nowIso = new Date().toISOString();
 
-    questions.forEach(q => {
+    questions.forEach((q) => {
       const docRef = doc(db, 'questions', q.id);
-      const dataToUpdate = { ...q, updatedAt: now };
-      delete (dataToUpdate as any).id;
-      // NEW: ضمّن core دائمًا (ولو كان null عيّنه core1)
-      (dataToUpdate as any).core = (q as any).core ?? "core1";
-      batch.update(docRef, dataToUpdate);
+      const { id, ...rest } = q;
+      batch.update(docRef, { ...rest, updatedAt: nowIso });
     });
 
     await batch.commit();
@@ -165,24 +183,21 @@ export async function handleUpdateMultipleQuestions(questions: Question[]): Prom
   }
 }
 
+/* ──────────────────────────────────────────────────────────────
+   Single update
+   - Preserves core; NO default to core1
+───────────────────────────────────────────────────────────────*/
 export async function handleUpdateQuestion(question: Question): Promise<{ success: boolean }> {
   if (!question || !question.id) {
-    console.error("Update failed: No question or question ID provided.");
+    console.error('Update failed: No question or question ID provided.');
     return { success: false };
   }
   try {
-    const questionRef = doc(db, "questions", question.id);
-    const now = new Date();
-    const dataToUpdate: any = { ...question };
-    delete dataToUpdate.id;
-
-    await updateDoc(questionRef, {
-      ...dataToUpdate,
-      core: dataToUpdate.core ?? "core1", // NEW: ثبّت core1 لو مفقود
-      updatedAt: now.toISOString(),
-    });
+    const questionRef = doc(db, 'questions', question.id);
+    const { id, ...rest } = question;
+    await updateDoc(questionRef, { ...rest, updatedAt: new Date().toISOString() });
     return { success: true };
-  } catch(error) {
+  } catch (error) {
     console.error('Error updating question in Firestore', error);
     return { success: false };
   }

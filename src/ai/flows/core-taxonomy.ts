@@ -1,22 +1,16 @@
-// لا تضع "use server" في هذا الملف
+// DO NOT add "use server" here
 
-export const CORE1_CHAPTERS = [
-  'Chapter 1: Summarizing Fundamental Security Concepts',
-  'Chapter 2: Comparing Threat Types',
-  'Chapter 3: Explaining Appropriate Cryptographic Solutions',
-  'Chapter 4: Implement Identity and Access Management',
-  'Chapter 5: Maintain Enterprise Campus Network Architecture',
-  'Chapter 6: Secure Cloud Network Architecture',
-  'Chapter 7: Explain Resiliency and Site Security Concepts',
-  'Chapter 8: Evaluate Network Security Capabilities',
-  'Chapter 9: Explain Vulnerability Management',
-  'Chapter 10: Assess Endpoint Security Capabilities',
-  'Chapter 11: Enhance Application Security Capabilities',
-  'Chapter 12: Explain Alerting and Monitoring Concepts',
-  'Chapter 13: Analyze Indicators of Malicious Activity',
-  'Chapter 14: Summarize Security Governance Concepts',
-  'Chapter 15: Explain Risk Management Processes',
-  'Chapter 16: Summarize Data Protection and Compliance Concepts',
+export const CORE1_MODULES = [
+  'Module 1: What Does an IT Specialist Do?',
+  'Module 2: Installing Motherboards and Connectors',
+  'Module 3: Installing System Devices',
+  'Module 4: Troubleshooting PC Hardware',
+  'Module 5: Comparing Local Networking Hardware',
+  'Module 6: Configuring Network Addressing and Internet Connections',
+  'Module 7: Supporting Network Services',
+  'Module 8: Summarizing Virtualization and Cloud Concepts',
+  'Module 9: Supporting Mobile Devices',
+  'Module 10: Supporting Print Devices',
 ] as const;
 
 export const CORE2_MODULES = [
@@ -34,10 +28,25 @@ export const CORE2_MODULES = [
   'Module 22: Implementing Operational Procedures',
 ] as const;
 
+// Prompt bullets (unchanged)
+export const CORE1_BULLETS = (CORE1_MODULES as readonly string[]).map(s => `- ${s}`).join('\n');
+export const CORE2_BULLETS = (CORE2_MODULES as readonly string[]).map(s => `- ${s}`).join('\n');
 
-// نصوص نقطية جاهزة للـ prompts
-export const CORE1_BULLETS = (CORE1_CHAPTERS as readonly string[])
-  .map((s: string) => `- ${s}`).join('\n');
+// ---------- Helpers you can import ----------
+export type Core = 'core1' | 'core2';
 
-export const CORE2_BULLETS = (CORE2_MODULES as readonly string[])
-  .map((s: string) => `- ${s}`).join('\n');
+export const CORE_RANGES: Record<Core, { min: number; max: number }> = {
+  core1: { min: 1, max: 10 },
+  core2: { min: 11, max: 22 },
+};
+
+export function moduleNumberFromTitle(title: string): number | null {
+  const m = title.match(/module\s*(\d+)/i);
+  return m ? Number(m[1]) : null;
+}
+
+export function titleFor(core: Core, moduleNum: number): string {
+  const list = core === 'core1' ? CORE1_MODULES : CORE2_MODULES;
+  const hit = (list as readonly string[]).find(s => moduleNumberFromTitle(s) === moduleNum);
+  return hit ?? list[0];
+}

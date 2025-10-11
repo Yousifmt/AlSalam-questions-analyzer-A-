@@ -2,29 +2,28 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { CORE1_BULLETS, CORE2_BULLETS } from './core-taxonomy';
-import { categorizeQuestion } from './categorize-question';
 
 /* ────────────────────────────────
-   Schemas (types only; erased at build)
+   Schemas
 ────────────────────────────────── */
 const ParseQuestionsInputSchema = z.object({
   text: z.string().describe('A block of mixed-format exam questions (EN/AR).'),
 });
 export type ParseQuestionsInput = z.infer<typeof ParseQuestionsInputSchema>;
 
+/** NOTE: core & chapter are OPTIONAL here (we do NOT classify during parsing). */
 const ParseItemSchema = z.object({
   questionText: z.string(),
   options: z.array(z.string()).optional(),
   correctAnswer: z.union([z.string(), z.array(z.string())]).optional(),
   explanation: z.string().optional(),
-  subject: z.string(),
-  core: z.enum(['core1', 'core2']),
-  chapter: z.string(),
+  subject: z.string().optional(),          // default to "Cyber Security"
+  core: z.enum(['core1', 'core2']).optional(), // DO NOT set here; UI/batch will decide
+  chapter: z.string().optional(),          // DO NOT set here
   topicTags: z.array(z.string()).optional(),
-  questionType: z.enum(['mcq', 'checkbox']),
-  difficulty: z.string(),
-  language: z.string(),
+  questionType: z.enum(['mcq', 'checkbox']).optional(),
+  difficulty: z.string().optional(),       // default "medium"
+  language: z.string().optional(),         // detect from questionText
   source: z.string().optional(),
   createdAt: z.string().optional(),
 });
@@ -32,7 +31,7 @@ const ParseQuestionsOutputSchema = z.array(ParseItemSchema);
 export type ParseQuestionsOutput = z.infer<typeof ParseQuestionsOutputSchema>;
 
 /* ────────────────────────────────
-   PUBLIC API (async export only)
+   PUBLIC API
 ────────────────────────────────── */
 export async function parseQuestionsFromText(
   input: ParseQuestionsInput
@@ -45,52 +44,48 @@ export async function parseQuestionsFromText(
 
   const out: ParseQuestionsOutput = [];
 
-  // 2) For each block: AI parse (strict) → enforce/repair → (if fail) local fallback
+  // 2) Parse each block: Local first (best at mapping answers) → AI fallback
   for (const block of blocks) {
-    // A) Try AI (single block) first
-    let item = await parseOneWithAI(block);
+    // Try local robust parser
+    let base = simpleExtract(block);
 
-    // B) If AI failed or returned no valid questionText, try local
-    if (!item || !item.questionText || /certyiq/i.test(item.questionText)) {
-      const base = simpleExtract(block);
-      if (base && base.questionText && !/certyiq/i.test(base.questionText)) {
-        // classify core+chapter
-        const cat = await categorizeQuestion({
-          questionText: base.questionText,
-          options: base.options,
-          correctAnswer: base.correctAnswer,
-        });
-        item = {
-          questionText: base.questionText,
-          options: base.options,
-          correctAnswer: base.correctAnswer,
-          explanation: '',
-          subject: 'Cyber Security',
-          core: cat.core,
-          chapter: cat.chapter,
-          topicTags: [],
-          questionType: base.questionType as 'mcq' | 'checkbox',
-          difficulty: 'medium',
-          language: isArabic(base.questionText) ? 'ar' : 'en',
-          source: '',
-          createdAt: new Date().toISOString(),
+    // If local failed, try AI fallback (parsing only — no core/module)
+    if (!base || !base.questionText || /certyiq/i.test(base.questionText)) {
+      const aiItem = await parseOneWithAI(block);
+      if (aiItem && aiItem.questionText && !/certyiq/i.test(aiItem.questionText)) {
+        base = {
+          questionText: aiItem.questionText,
+          options: aiItem.options ?? [],
+          correctAnswer: aiItem.correctAnswer,
+          questionType: (aiItem.questionType as 'mcq' | 'checkbox') ?? 'mcq',
         };
       }
     }
 
-    if (!item) continue;
+    if (!base) continue;
 
-    // C) Enforce/repair correctAnswer against the raw block & options
-    item = enforceAnswerConsistency(item, block);
+    // Enforce/repair correctAnswer against raw block & options
+    const enforced = enforceAnswerConsistency(
+      {
+        questionText: base.questionText,
+        options: base.options,
+        correctAnswer: base.correctAnswer,
+        questionType: base.questionType as 'mcq' | 'checkbox',
+        subject: 'Cyber Security',
+        difficulty: 'medium',
+        language: isArabic(base.questionText) ? 'ar' : 'en',
+        createdAt: new Date().toISOString(),
+      },
+      block
+    );
 
-    // D) Final sanity
-    if (!item.questionType) {
-      item.questionType = Array.isArray(item.correctAnswer) ? 'checkbox' : 'mcq';
+    // Ensure questionType
+    if (!enforced.questionType) {
+      enforced.questionType = Array.isArray(enforced.correctAnswer) ? 'checkbox' : 'mcq';
     }
-    item.subject ||= 'Cyber Security';
-    item.createdAt ||= new Date().toISOString();
 
-    out.push(item);
+    // DO NOT set core/chapter here. Let UI/batch categorizer handle it later.
+    out.push(enforced);
   }
 
   return out;
@@ -106,19 +101,20 @@ function preClean(text: string): string {
     .map((l) => l.replace(/\s+$/g, '')) // trim right
     .filter((line) => {
       const l = line.trim();
-      // Drop watermark/junk
+      // Keep blanks; drop common junk/watermarks/headers
       if (!l) return true;
       if (/^certyiq$/i.test(l)) return false;
       if (/^answer\s*key\b/i.test(l)) return false;
       if (/^page\s*\d+(?:\s*of\s*\d+)?$/i.test(l)) return false;
-      if (/^question\s*:?\s*\d+\b.*\bcertyiq\b.*$/i.test(l)) return false; // "Question: 12 CertyIQ"
-      // Standalone "Question 26:" header with no content
+      // "Question: 12 CertyIQ"
+      if (/^question\s*:?\s*\d+\b.*\bcertyiq\b.*$/i.test(l)) return false;
+      // Standalone headers like "Question 26:"
       if (/^question\s*:?\s*\d+\s*[:.)-]?\s*$/i.test(l)) return false;
       return true;
     })
     .join('\n')
     .replace(/question\s*:?\s*\d+\s*certyiq/gi, '') // inline watermark fragment
-    .replace(/\n{3,}/g, '\n\n') // collapse excessive blank lines
+    .replace(/\n{3,}/g, '\n\n') // collapse extra blank lines
     .trim();
 }
 
@@ -138,8 +134,8 @@ function segmentQuestions(text: string): string[] {
   let hasOptions = false;
 
   const flush = () => {
-    const block = curr.join('\n').trim();
-    if (block) blocks.push(block);
+    const b = curr.join('\n').trim();
+    if (b) blocks.push(b);
     curr = [];
     hasOptions = false;
   };
@@ -148,9 +144,7 @@ function segmentQuestions(text: string): string[] {
     const ln = lines[i];
 
     // New explicit question start closes previous
-    if (START_RE.test(ln) && curr.length) {
-      flush();
-    }
+    if (START_RE.test(ln) && curr.length) flush();
 
     curr.push(ln);
 
@@ -182,12 +176,12 @@ function segmentQuestions(text: string): string[] {
 }
 
 /* ────────────────────────────────
-   AI PARSER (STRICT, SINGLE BLOCK)
+   AI PARSER (SINGLE BLOCK, NO CORE/CHAPTER)
 ────────────────────────────────── */
 const parseOnePrompt = ai.definePrompt({
   name: 'parseOneQuestionStrict',
   input: { schema: ParseQuestionsInputSchema }, // {text}
-  output: { schema: ParseQuestionsOutputSchema }, // array with exactly 1 object
+  output: { schema: ParseQuestionsOutputSchema }, // array with exactly 1 object (but core/chapter optional)
   prompt: `
 You parse ONE exam question block and must RETURN AN ARRAY WITH EXACTLY ONE OBJECT.
 If there is no valid question after cleaning, return [].
@@ -213,60 +207,18 @@ SELF-CHECK (MANDATORY)
 - If not, FIX IT by mapping letters/numbers to the actual option text.
 - Do not output letter(s) alone as the answer.
 
-SUBJECT/CORE/CHAPTER
-- "subject" is always "Cyber Security".
-- Decide a core ("core1" or "core2"), then pick ONE exact chapter string from that core's list:
-
-Core 1 chapters:
-${CORE1_BULLETS}
-
-Core 2 chapters:
-${CORE2_BULLETS}
+DO NOT classify to "core" or "chapter". Leave them empty.
 
 RETURN (ARRAY WITH ONE OBJECT):
 {
   "questionText": string,
   "options"?: string[],
   "correctAnswer"?: string | string[],
-  "explanation"?: string,
-  "subject": "Cyber Security",
-  "core": "core1" | "core2",
-  "chapter": string,
-  "topicTags"?: string[],
   "questionType": "mcq" | "checkbox",
-  "difficulty": string,
-  "language": string,
-  "source"?: string,
-  "createdAt"?: string
+  "difficulty": "medium",
+  "language": "en" | "ar",
+  "subject": "Cyber Security"
 }
-
-TRICKY EXAMPLES
-1)
-... 
-A. Implement the change.
-B. Approve the change.
-C. Propose the change.
-D. Schedule the change.
-Answer: D
-→ correctAnswer = "Schedule the change."
-
-2)
-...
-1) Event Viewer
-2) Task Manager
-3) Internet Options
-4) Process Explorer
-Answer: 3
-→ correctAnswer = "Internet Options"
-
-3)
-...
-A) TLS
-B) WEP
-C) WPA2
-D) WPA3
-Answer: C and D
-→ correctAnswer = ["WPA2","WPA3"], questionType = "checkbox"
 
 INPUT:
 {{{text}}}
@@ -278,7 +230,19 @@ async function parseOneWithAI(block: string) {
     const { output } = await parseOnePrompt({ text: block });
     if (!Array.isArray(output) || output.length === 0) return null;
     const item = output[0] as z.infer<typeof ParseItemSchema>;
-    return item;
+
+    // Normalize a few fields if missing
+    const q: z.infer<typeof ParseItemSchema> = {
+      questionText: item.questionText,
+      options: item.options ?? [],
+      correctAnswer: item.correctAnswer,
+      questionType: (item.questionType as 'mcq' | 'checkbox') ?? 'mcq',
+      subject: 'Cyber Security',
+      difficulty: item.difficulty ?? 'medium',
+      language: item.language ?? (isArabic(item.questionText) ? 'ar' : 'en'),
+      createdAt: item.createdAt ?? new Date().toISOString(),
+    };
+    return q;
   } catch {
     return null;
   }
@@ -297,7 +261,7 @@ function enforceAnswerConsistency(
   const isMember = (ans: string) =>
     options.some((o) => normalize(o) === normalize(ans));
 
-  // If AI already gave a valid answer, keep it
+  // If AI/local already gave a valid answer, keep it
   if (typeof item.correctAnswer === 'string') {
     if (isMember(item.correctAnswer)) return item;
   } else if (Array.isArray(item.correctAnswer) && item.correctAnswer.length) {
@@ -394,14 +358,14 @@ function deriveAnswerFromBlock(block: string, opts: string[]): string | string[]
 }
 
 /* ────────────────────────────────
-   LOCAL PARSER (fallback)
+   LOCAL PARSER (fallback-first)
 ────────────────────────────────── */
 function simpleExtract(block: string):
   | {
       questionText: string;
       options: string[];
       correctAnswer?: string | string[];
-      questionType: string;
+      questionType: 'mcq' | 'checkbox';
     }
   | null {
   const lines = block.replace(/\r\n/g, '\n').split('\n');
@@ -435,8 +399,8 @@ function simpleExtract(block: string):
   // Try to derive answer from the raw block
   const derived = deriveAnswerFromBlock(block, opts);
 
-  const questionType =
-    Array.isArray(derived) ? 'checkbox' : opts.length ? 'mcq' : 'mcq';
+  const questionType: 'mcq' | 'checkbox' =
+    Array.isArray(derived) ? 'checkbox' : 'mcq';
 
   return { questionText, options: opts, correctAnswer: derived, questionType };
 }

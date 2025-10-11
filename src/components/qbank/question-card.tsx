@@ -159,7 +159,6 @@ export default function QuestionCard({
     setIsCategorizing(true);
     try {
       const categorizedQuestionData = await handleCategorizeQuestion(question);
-      // لو ما فيه core خله core1
       const withCore = { ...categorizedQuestionData, core: categorizedQuestionData.core ?? "core1" as const };
       const result = await handleUpdateQuestion(withCore);
       if (result.success) {
@@ -269,17 +268,10 @@ export default function QuestionCard({
               {cleanQuestionText}
               {isNew && <Badge className="ml-2 uppercase">New</Badge>}
             </CardTitle>
+
             <div className="flex items-center gap-2 pl-4">
-              {/* NEW: إظهار الكور */}
-<Badge
-  variant="secondary"
-  className="text-secondary-foreground whitespace-nowrap shrink-0 leading-none px-2 py-0.5"
->
-  {coreLabel}
-</Badge>
-
-
-              {similarityScore && (
+              {/* تم نقل بادج الـ Core من هنا إلى الـ Footer بجانب Chapter */}
+              {typeof similarityScore === "number" && (
                 <Badge variant={similarityScore > 0.8 ? "default" : "secondary"}>
                   Similarity: {(similarityScore * 100).toFixed(0)}%
                 </Badge>
@@ -330,7 +322,7 @@ export default function QuestionCard({
         <CardContent className="flex-grow">
           {question.imageUrl && (
             <div className="relative w-full max-w-2xl mx-auto aspect-video rounded-md overflow-hidden mb-4">
-              <Image src={question.imageUrl} alt="Question image" fill objectFit="contain" />
+              <Image src={question.imageUrl} alt="Question image" fill style={{ objectFit: "contain" }} />
             </div>
           )}
 
@@ -365,9 +357,11 @@ export default function QuestionCard({
         </CardContent>
 
         <CardFooter className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-4">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">{question.chapter}</Badge>
-          </div>
+          {/* هنا صار التجميع: Chapter + Core جنب بعض */}
+          <div className="flex flex-wrap items-center gap-2">
+    <Badge variant="secondary">{question.chapter ?? "Unassigned"}</Badge>
+    <Badge variant="secondary">{coreLabel}</Badge>
+  </div>
 
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-1">
             {!isLocked && (
@@ -397,7 +391,7 @@ export default function QuestionCard({
               <span className="sm:inline">Explain</span>
             </Button>
 
-            {!similarityScore && (
+            {typeof similarityScore !== "number" && (
               <Button
                 variant="card-outline"
                 size="sm"
@@ -405,7 +399,7 @@ export default function QuestionCard({
                 onClick={findSimilar}
                 disabled={isFindingSimilar}
               >
-                <Sparkles className={`mr-1 sm:mr-2 h-4 w-4 ${isFindingSimilar ? "animate-spin" : ""}`} />
+                <Sparkles className={cn("mr-1 sm:mr-2 h-4 w-4", isFindingSimilar && "animate-spin")} />
                 <span className="sm:inline">Find Similar</span>
               </Button>
             )}

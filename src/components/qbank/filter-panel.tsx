@@ -1,3 +1,4 @@
+// src/components/qbank/filter-panel.tsx
 "use client";
 
 import { Checkbox } from "@/components/ui/checkbox";
@@ -37,6 +38,12 @@ type FilterPanelProps = {
   onCloseSheet: () => void;
 };
 
+// extract "12" from "Module 12: ..." or "Chapter 12: ..."
+function chapterNumber(s: string): number {
+  const m = s.match(/(?:module|chapter)\s*(\d+)/i);
+  return m ? parseInt(m[1], 10) : Number.POSITIVE_INFINITY;
+}
+
 export default function FilterPanel({
   filters,
   setFilters,
@@ -64,6 +71,16 @@ export default function FilterPanel({
     setFilters({ ...filters, [filterName]: value });
     if (filterName === "quiz") onCloseSheet();
   };
+
+  // ✅ sort chapters by their numeric module/chapter index
+  const chaptersSorted = React.useMemo(() => {
+    return [...chapters].sort((a, b) => {
+      const na = chapterNumber(a);
+      const nb = chapterNumber(b);
+      if (na === nb) return a.localeCompare(b); // stable tie-breaker
+      return na - nb;
+    });
+  }, [chapters]);
 
   return (
     <div className="space-y-6 p-4">
@@ -105,7 +122,7 @@ export default function FilterPanel({
         <Label className="font-semibold text-foreground">Chapter</Label>
         <ScrollArea className="h-60 w-full rounded-md border p-2">
           <div className="space-y-2">
-            {chapters.map((chapter) => (
+            {chaptersSorted.map((chapter) => (
               <div key={chapter} className="flex items-center space-x-2">
                 <Checkbox
                   id={`chapter-${chapter}`}
@@ -117,7 +134,7 @@ export default function FilterPanel({
                 </Label>
               </div>
             ))}
-            {chapters.length === 0 && (
+            {chaptersSorted.length === 0 && (
               <p className="text-xs text-gray-400">No chapters found.</p>
             )}
           </div>

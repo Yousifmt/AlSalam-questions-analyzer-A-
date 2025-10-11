@@ -54,11 +54,16 @@ const getCreatedAtDate = (val: any): Date | null => {
   return isNaN(d.getTime()) ? null : d;
 };
 
-/** Core Select Dialog
- * - First open (showClose=false): no X, no overlay close, Esc disabled.
- * - Later opens (showClose=true): shows X, overlay click & Esc close enabled.
- * - Always centered, mobile friendly, safe-area padding.
+/** Extract 12 from "Module 12: ..." or "Chapter 12: ...".
+ * If absent, returns +Infinity so unknown chapters sink to the end.
  */
+function chapterNum(s?: string): number {
+  if (!s) return Number.POSITIVE_INFINITY;
+  const m = s.match(/(?:module|chapter)\s*(\d+)/i);
+  return m ? parseInt(m[1], 10) : Number.POSITIVE_INFINITY;
+}
+
+/** Core Select Dialog */
 function CoreSelectDialog({
   isOpen,
   onChoose,
@@ -77,7 +82,6 @@ function CoreSelectDialog({
     };
     document.addEventListener("keydown", onKey);
 
-    // Prevent background scroll while open
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
@@ -90,12 +94,10 @@ function CoreSelectDialog({
 
   return (
     <>
-      {/* Overlay */}
       <div
         className="fixed inset-0 z-[999] bg-black/60"
         onClick={showClose ? onClose : undefined}
       />
-      {/* Dialog */}
       <div
         className="
           fixed z-[1000] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
@@ -117,7 +119,6 @@ function CoreSelectDialog({
             Choose which question set you want to view.
           </p>
 
-          {/* Close button appears only on later opens */}
           {showClose && (
             <button
               type="button"
@@ -132,7 +133,6 @@ function CoreSelectDialog({
           )}
         </div>
 
-        {/* Actions */}
         <div className="mt-4">
           <div className="flex flex-wrap gap-3">
             <button
@@ -187,14 +187,13 @@ export default function Home() {
   // Core state
   const [selectedCore, setSelectedCore] = React.useState<CoreType | null>(null);
   const [isCoreDialogOpen, setIsCoreDialogOpen] = React.useState(false);
-  const [isInitialCoreOpen, setIsInitialCoreOpen] = React.useState(true); // first time flag
+  const [isInitialCoreOpen, setIsInitialCoreOpen] = React.useState(true);
 
   const isMobile = useIsMobile();
   const [showBackToTop, setShowBackToTop] = React.useState(false);
   const pageRef = React.useRef<HTMLDivElement>(null);
   const [savedQuestionIds, setSavedQuestionIds] = React.useState<string[]>([]);
 
-  // First visit: open core picker (no X)
   React.useEffect(() => {
     setIsCoreDialogOpen(true);
     setIsInitialCoreOpen(true);
@@ -203,8 +202,7 @@ export default function Home() {
   const chooseCore = (core: CoreType) => {
     setSelectedCore(core);
     setIsCoreDialogOpen(false);
-    setIsInitialCoreOpen(false); // after first choice, later opens will show X
-    // reset filters/sort when core changes
+    setIsInitialCoreOpen(false);
     setFilters({ ...initialFilters });
     setSort("chapter_asc");
     setShowAllAnswers(false);
@@ -222,7 +220,6 @@ export default function Home() {
       );
       const normalized = questionsData.map((qq) => ({
         ...qq,
-        // default core if missing (UI-side only)
         core: (qq as any).core ?? "core1",
       }));
       setQuestions(normalized);
@@ -243,15 +240,16 @@ export default function Home() {
     return questions.filter((q) => ((q as any).core ?? "core1") === core);
   }, [questions, selectedCore]);
 
-  // Chapters based on current core only
+  // Chapters based on current core only — sorted numerically
   const chaptersForCore = React.useMemo(() => {
     const chapters = new Set<string>();
     coreFiltered.forEach((q) => q.chapter && chapters.add(q.chapter));
-    const num = (s: string) => {
-      const m = s?.match?.(/Chapter (\d+)/);
-      return m ? parseInt(m[1], 10) : Infinity;
-    };
-    return Array.from(chapters).sort((a, b) => num(a) - num(b));
+    return Array.from(chapters).sort((a, b) => {
+      const na = chapterNum(a);
+      const nb = chapterNum(b);
+      if (na === nb) return a.localeCompare(b);
+      return na - nb;
+    });
   }, [coreFiltered]);
 
   // Apply filters/sort on the coreFiltered list
@@ -264,12 +262,13 @@ export default function Home() {
 
     let temp = [...coreFiltered];
 
-    const num = (s: string) => {
-      const m = s?.match?.(/Chapter (\d+)/);
-      return m ? parseInt(m[1], 10) : Infinity;
-    };
-
-    const chapterSorted = [...temp].sort((a, b) => num(a.chapter) - num(b.chapter));
+    // Always start with ascending chapter order (numeric)
+    const chapterSorted = [...temp].sort((a, b) => {
+      const na = chapterNum(a.chapter);
+      const nb = chapterNum(b.chapter);
+      if (na === nb) return (a.chapter || "").localeCompare(b.chapter || "");
+      return na - nb;
+    });
 
     // quiz slicing (45 per quiz)
     if (filters.quiz !== "all") {
@@ -319,19 +318,19 @@ export default function Home() {
       temp = temp.filter((q) => filters.questionType.includes(q.questionType));
     }
 
-    // final sort
-    const sorted = [...temp].sort((a, b) => {
-      switch (sort) {
-        case "chapter_desc": {
-          return num(b.chapter) - num(a.chapter);
-        }
-        case "random":
-          return Math.random() - 0.5;
-        case "chapter_asc":
-        default:
-          return 0;
-      }
-    });
+    // final sort selection
+    let sorted: Question[] = [...temp];
+    if (sort === "chapter_desc") {
+      sorted = [...sorted].sort((a, b) => {
+        const na = chapterNum(a.chapter);
+        const nb = chapterNum(b.chapter);
+        if (na === nb) return (b.chapter || "").localeCompare(a.chapter || "");
+        return nb - na;
+      });
+    } else if (sort === "random") {
+      sorted = [...sorted].sort(() => Math.random() - 0.5);
+    }
+    // chapter_asc keeps the ascending order from chapterSorted
 
     setFilteredQuestions(sorted);
     setUserAnswers({});
@@ -478,7 +477,6 @@ export default function Home() {
                 onResetView={resetView}
                 filteredQuestions={filteredQuestions}
               />
-              {/* quick core switch (later open -> showClose=true) */}
               <div className="absolute left-4 -bottom-4 z-20">
                 <Button
                   variant="outline"
@@ -588,7 +586,7 @@ export default function Home() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Core select (showClose depends on first/late open) */}
+        {/* Core select */}
         <CoreSelectDialog
           isOpen={isCoreDialogOpen}
           onChoose={chooseCore}

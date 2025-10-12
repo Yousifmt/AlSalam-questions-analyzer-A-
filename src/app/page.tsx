@@ -30,6 +30,7 @@ import Footer from "@/components/qbank/footer";
 
 const EXAM_QUESTION_COUNT = 90;
 const RECENT_DAYS = 10;
+const QUIZ_SIZE = 45;
 
 export type ExamMode = "during" | "after";
 export type SortType = "chapter_asc" | "chapter_desc" | "random";
@@ -41,6 +42,10 @@ const initialFilters = {
   showSavedOnly: false,
   quiz: "all",
   recentOnly: false,
+
+  // حقول داخلية لإيصال معلومات الكور و العدد إلى FilterPanel بدون تعديل FilterSheet:
+  _activeCore: "core1" as CoreType,
+  _coreCount: 0 as number,
 };
 
 const getCreatedAtDate = (val: any): Date | null => {
@@ -203,7 +208,7 @@ export default function Home() {
     setSelectedCore(core);
     setIsCoreDialogOpen(false);
     setIsInitialCoreOpen(false);
-    setFilters({ ...initialFilters });
+    setFilters({ ...initialFilters, _activeCore: core, _coreCount: 0 });
     setSort("chapter_asc");
     setShowAllAnswers(false);
   };
@@ -240,6 +245,16 @@ export default function Home() {
     return questions.filter((q) => ((q as any).core ?? "core1") === core);
   }, [questions, selectedCore]);
 
+  // ✅ حدّث معلومات الكور والعدد داخل filters (ليستخدمها FilterPanel ديناميكياً)
+  React.useEffect(() => {
+    if (!selectedCore) return;
+    setFilters((prev) => ({
+      ...prev,
+      _activeCore: selectedCore,
+      _coreCount: coreFiltered.length,
+    }));
+  }, [selectedCore, coreFiltered.length]);
+
   // Chapters based on current core only — sorted numerically
   const chaptersForCore = React.useMemo(() => {
     const chapters = new Set<string>();
@@ -270,11 +285,11 @@ export default function Home() {
       return na - nb;
     });
 
-    // quiz slicing (45 per quiz)
+    // quiz slicing (45 per quiz) — يعمل لكلا الكورين
     if (filters.quiz !== "all") {
-      const quizNumber = parseInt(filters.quiz.replace("quiz", ""), 10);
+      const quizNumber = parseInt(String(filters.quiz).replace("quiz", ""), 10);
       if (quizNumber >= 1 && quizNumber <= 6) {
-        const SIZE = 45;
+        const SIZE = QUIZ_SIZE; // 45
         let start = 0;
         let end = chapterSorted.length;
         if (quizNumber >= 1 && quizNumber <= 5) {
@@ -282,7 +297,7 @@ export default function Home() {
           end = Math.min(start + SIZE, chapterSorted.length);
         } else if (quizNumber === 6) {
           start = 5 * SIZE;
-          end = chapterSorted.length;
+          end = chapterSorted.length; // المتبقي
         }
         start = Math.max(0, Math.min(start, chapterSorted.length));
         end = Math.max(start, Math.min(end, chapterSorted.length));
@@ -358,10 +373,9 @@ export default function Home() {
     setExamAnswerMode(mode);
     setIsExamFinished(false);
     setUserAnswers({});
-    setExamScore(0);
     setShowAllAnswers(false);
     setSearchQuery("");
-    setFilters({ ...initialFilters });
+    setFilters((prev) => ({ ...initialFilters, _activeCore: selectedCore ?? "core1", _coreCount: pool.length }));
     setSort("chapter_asc");
     setIsExamOptionsDialogOpen(false);
   };
@@ -436,7 +450,7 @@ export default function Home() {
 
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
   const clearAllFilters = () => {
-    setFilters({ ...initialFilters });
+    setFilters((prev) => ({ ...initialFilters, _activeCore: selectedCore ?? "core1", _coreCount: coreFiltered.length }));
     setSort("chapter_asc");
   };
 
@@ -538,7 +552,7 @@ export default function Home() {
                 isExamMode={isExamMode}
                 savedQuestionIds={savedQuestionIds}
                 onToggleSave={toggleSaveQuestion}
-                onAnswerChange={handleAnswerChange}
+                onAnswerChange={(id, a) => setUserAnswers((prev) => ({ ...prev, [id]: a }))}
                 examAnswerMode={examAnswerMode}
                 isExamFinished={isExamFinished}
                 userAnswers={userAnswers}
@@ -563,7 +577,7 @@ export default function Home() {
         <ExamOptionsDialog
           isOpen={isExamOptionsDialogOpen}
           setIsOpen={setIsExamOptionsDialogOpen}
-          onStartExam={startExam}
+          onStartExam={(mode) => startExam(mode)}
         />
 
         {/* Exam results */}

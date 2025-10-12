@@ -18,17 +18,6 @@ const questionTypes = [
   { id: "checkbox", label: "Checkboxes" },
 ];
 
-// Updated labels for 45-per-quiz scheme
-const quizzes = [
-  { id: "all", label: "All Questions" },
-  { id: "quiz1", label: "Quiz 1 (1–45)" },
-  { id: "quiz2", label: "Quiz 2 (46–90)" },
-  { id: "quiz3", label: "Quiz 3 (91–135)" },
-  { id: "quiz4", label: "Quiz 4 (136–180)" },
-  { id: "quiz5", label: "Quiz 5 (181–225)" },
-  { id: "quiz6", label: "Quiz 6 (226+ / remaining)" },
-];
-
 type FilterPanelProps = {
   filters: any;
   setFilters: (filters: any) => void;
@@ -43,6 +32,40 @@ function chapterNumber(s: string): number {
   const m = s.match(/(?:module|chapter)\s*(\d+)/i);
   return m ? parseInt(m[1], 10) : Number.POSITIVE_INFINITY;
 }
+
+/** لبناء تسميات الكويز لـ Core 2: 5 كويزات فقط — أول 4 بحجم 45، الخامس للمتبقي كله */
+function buildCore2Quizzes(total: number) {
+  const SIZE = 45;
+  const items: Array<{ id: string; label: string }> = [{ id: "all", label: "All Questions" }];
+
+  // Quiz 1..4: ثابتة 45
+  for (let i = 0; i < 4; i++) {
+    const start = i * SIZE + 1;
+    const end = Math.min((i + 1) * SIZE, Math.max(total, start));
+    items.push({ id: `quiz${i + 1}`, label: `Quiz ${i + 1} (${start}–${end})` });
+  }
+
+  // Quiz 5: من 181 إلى total (قد يكون > 45 وهذا المطلوب)
+  if (total >= 181) {
+    items.push({ id: "quiz5", label: `Quiz 5 (181–${total})` });
+  } else {
+    // لو أقل من 181 (نادر)، أعرض تسمية عامة
+    items.push({ id: "quiz5", label: `Quiz 5 (181+ / remaining)` });
+  }
+
+  return items;
+}
+
+/** تسميات Core 1 تبقى كما هي: 6 كويزات */
+const CORE1_QUIZZES_STATIC = [
+  { id: "all", label: "All Questions" },
+  { id: "quiz1", label: "Quiz 1 (1–45)" },
+  { id: "quiz2", label: "Quiz 2 (46–90)" },
+  { id: "quiz3", label: "Quiz 3 (91–135)" },
+  { id: "quiz4", label: "Quiz 4 (136–180)" },
+  { id: "quiz5", label: "Quiz 5 (181–225)" },
+  { id: "quiz6", label: "Quiz 6 (226+ / remaining)" },
+];
 
 export default function FilterPanel({
   filters,
@@ -72,15 +95,24 @@ export default function FilterPanel({
     if (filterName === "quiz") onCloseSheet();
   };
 
-  // ✅ sort chapters by their numeric module/chapter index
+  // ✅ sort chapters numerically
   const chaptersSorted = React.useMemo(() => {
     return [...chapters].sort((a, b) => {
       const na = chapterNumber(a);
       const nb = chapterNumber(b);
-      if (na === nb) return a.localeCompare(b); // stable tie-breaker
+      if (na === nb) return a.localeCompare(b);
       return na - nb;
     });
   }, [chapters]);
+
+  // معلومات الكور والعدد تُمرّر من الصفحة عبر filters
+  const activeCore: "core1" | "core2" = (filters?._activeCore as any) ?? "core1";
+  const coreTotalCount: number = Number(filters?._coreCount ?? 0);
+
+  // خيارات الكويز ديناميكية: Core 1 ثابتة، Core 2 = 5 كويزات فقط
+  const quizOptions = React.useMemo(() => {
+    return activeCore === "core2" ? buildCore2Quizzes(coreTotalCount || 230) : CORE1_QUIZZES_STATIC;
+  }, [activeCore, coreTotalCount]);
 
   return (
     <div className="space-y-6 p-4">
@@ -107,7 +139,7 @@ export default function FilterPanel({
             <SelectValue placeholder="Select a quiz" />
           </SelectTrigger>
           <SelectContent>
-            {quizzes.map((quiz) => (
+            {quizOptions.map((quiz) => (
               <SelectItem key={quiz.id} value={quiz.id}>
                 {quiz.label}
               </SelectItem>

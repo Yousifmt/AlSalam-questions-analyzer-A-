@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react"; // 👈 ضروري
 import { useRouter, useSearchParams } from "next/navigation";
 import { type Question } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -72,7 +73,18 @@ function normalizeCoreValue(raw: unknown): Core | null {
 }
 
 export default function Page() {
-  return <CategorizeView />;
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[40vh] flex items-center justify-center gap-3 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>Loading categorize view…</span>
+        </div>
+      }
+    >
+      <CategorizeView />
+    </Suspense>
+  );
 }
 
 function CategorizeView() {

@@ -1,4 +1,4 @@
-// DO NOT add "use server" here
+// src\ai\flows\core-taxonomy.ts
 
 export const CORE1_MODULES = [
   'Module 1: What Does an IT Specialist Do?',

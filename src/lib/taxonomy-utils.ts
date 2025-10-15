@@ -1,4 +1,5 @@
-// DO NOT add "use server"
+// src\lib\taxonomy-utils.ts
+
 import { CORE1_MODULES, CORE2_MODULES } from '@/ai/flows/core-taxonomy';
 
 export type Core = 'core1' | 'core2';

@@ -17,7 +17,7 @@ import { Loader2, Unlock } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { useLock } from "@/context/lock-context";
 
-const UNLOCK_CODE = "35193916";
+const UNLOCK_CODE = "353535";
 
 type UnlockDialogProps = {
   isOpen: boolean;

@@ -1,3 +1,4 @@
+// src/app/categorize/page.tsx
 "use client";
 
 import * as React from "react";
@@ -17,15 +18,23 @@ import {
   limit,
   startAfter,
   documentId,
+  Timestamp,
+  type CollectionReference,
   type DocumentData,
+  type Query,
   type QueryDocumentSnapshot,
   type QuerySnapshot,
 } from "firebase/firestore";
 import { handleCategorizeQuestion, handleUpdateMultipleQuestions } from "@/lib/actions";
 
 type Core = "core1" | "core2";
-
 const BATCH_SIZE = 500;
+
+/** Firestore shape (بدون id) مع حقول createdAt متنوعة */
+type QuestionFS = Omit<Question, "id"> & {
+  core?: string | null;
+  createdAt?: Timestamp | Date | string | null;
+};
 
 function parseCore(v: string | null): Core | null {
   if (!v) return null;
@@ -38,18 +47,28 @@ const coreLabel = (c: Core) => (c === "core1" ? "Core 1" : "Core 2");
 
 function toMs(v: unknown): number {
   try {
-    const anyV = v as any;
-    if (anyV?.toDate) return anyV.toDate().getTime();
-    const n = Date.parse((v as string) ?? "");
+    if (v instanceof Timestamp) return v.toMillis();
+    const anyV = v as { toDate?: () => Date };
+    if (typeof anyV?.toDate === "function") return anyV.toDate().getTime();
+    const n = Date.parse(String(v ?? ""));
     return Number.isFinite(n) ? n : 0;
   } catch {
     return 0;
   }
 }
+
 function moduleNumberFromTitle(title?: string): number | null {
   if (!title) return null;
   const m = title.match(/module\s*(\d+)/i);
   return m ? Number(m[1]) : null;
+}
+
+function normalizeCoreValue(raw: unknown): Core | null {
+  if (raw == null) return null;
+  const s = String(raw).toLowerCase().trim();
+  if (["core1", "core 1", "c1", "1"].includes(s)) return "core1";
+  if (["core2", "core 2", "c2", "2"].includes(s)) return "core2";
+  return null;
 }
 
 export default function Page() {
@@ -93,61 +112,131 @@ function CategorizeView() {
   const [processedCount, setProcessedCount] = React.useState(0);
   const [isComplete, setIsComplete] = React.useState(false);
 
-  // ===== Fetch ALL questions for a core with pagination =====
+  // ===== robust fetch (handles missing/variant core values) =====
   const fetchAllForCore = React.useCallback(async (core: Core): Promise<Question[]> => {
-    const colRef = collection(db, "questions");
-    const rows: Question[] = [];
+    const colRef = collection(db, "questions") as CollectionReference<QuestionFS>;
+    const rowsMap = new Map<string, Question>();
 
-    // Preferred: where(core)== & orderBy(createdAt desc)
-    let canUseCreatedAt = true;
-    let last1: QueryDocumentSnapshot<DocumentData> | null = null;
+    const pushDoc = (doc: QueryDocumentSnapshot<QuestionFS>) => {
+      const data = doc.data();
+      rowsMap.set(doc.id, { id: doc.id, ...(data as unknown as Record<string, unknown>) } as Question);
+    };
 
+    // A) where(core == ..) + orderBy(createdAt desc)
+    let needsEqFallback = false;
     try {
+      let last: QueryDocumentSnapshot<QuestionFS> | null = null;
       // eslint-disable-next-line no-constant-condition
       while (true) {
-        const q = last1
-          ? fsQuery(colRef, where("core", "==", core), orderBy("createdAt", "desc"), startAfter(last1), limit(BATCH_SIZE))
-          : fsQuery(colRef, where("core", "==", core), orderBy("createdAt", "desc"), limit(BATCH_SIZE));
-        const snap: QuerySnapshot<DocumentData> = await getDocs(q);
-        if (snap.empty) break;
-
-        snap.docs.forEach((docSnap: QueryDocumentSnapshot<DocumentData>) => {
-          rows.push({ id: docSnap.id, ...(docSnap.data() as Record<string, unknown>) } as Question);
-        });
-
-        last1 = snap.docs[snap.docs.length - 1] ?? null;
-        if (snap.size < BATCH_SIZE) break;
+        const qry: Query<QuestionFS> = last
+          ? (fsQuery(colRef, where("core", "==", core), orderBy("createdAt", "desc"), startAfter(last), limit(BATCH_SIZE)) as Query<QuestionFS>)
+          : (fsQuery(colRef, where("core", "==", core), orderBy("createdAt", "desc"), limit(BATCH_SIZE)) as Query<QuestionFS>);
+        const page: QuerySnapshot<QuestionFS> = await getDocs(qry);
+        if (page.empty) break;
+        page.docs.forEach(pushDoc);
+        last = page.docs[page.docs.length - 1] ?? null;
+        if (page.size < BATCH_SIZE) break;
       }
-    } catch (err: unknown) {
+    } catch (err) {
       const msg = String((err as { message?: string })?.message ?? "").toLowerCase();
-      if (!msg.includes("requires an index")) throw err;
-      canUseCreatedAt = false;
+      if (msg.includes("requires an index")) needsEqFallback = true;
+      else throw err;
     }
 
-    if (!canUseCreatedAt) {
-      rows.length = 0;
-      let last2: QueryDocumentSnapshot<DocumentData> | null = null;
+    // A-fallback) where(core==..) + orderBy(documentId())
+    if (needsEqFallback) {
+      let last: QueryDocumentSnapshot<QuestionFS> | null = null;
       // eslint-disable-next-line no-constant-condition
       while (true) {
-        const q = last2
-          ? fsQuery(colRef, where("core", "==", core), orderBy(documentId()), startAfter(last2), limit(BATCH_SIZE))
-          : fsQuery(colRef, where("core", "==", core), orderBy(documentId()), limit(BATCH_SIZE));
-        const snap: QuerySnapshot<DocumentData> = await getDocs(q);
-        if (snap.empty) break;
-
-        snap.docs.forEach((docSnap: QueryDocumentSnapshot<DocumentData>) => {
-          rows.push({ id: docSnap.id, ...(docSnap.data() as Record<string, unknown>) } as Question);
-        });
-
-        last2 = snap.docs[snap.docs.length - 1] ?? null;
-        if (snap.size < BATCH_SIZE) break;
+        const qry: Query<QuestionFS> = last
+          ? (fsQuery(colRef, where("core", "==", core), orderBy(documentId()), startAfter(last), limit(BATCH_SIZE)) as Query<QuestionFS>)
+          : (fsQuery(colRef, where("core", "==", core), orderBy(documentId()), limit(BATCH_SIZE)) as Query<QuestionFS>);
+        const page: QuerySnapshot<QuestionFS> = await getDocs(qry);
+        if (page.empty) break;
+        page.docs.forEach(pushDoc);
+        last = page.docs[page.docs.length - 1] ?? null;
+        if (page.size < BATCH_SIZE) break;
       }
     }
 
+    // B) where(core in [...variants]) لمحاولة صيغ شائعة
+    const variants: string[] =
+      core === "core1"
+        ? ["core 1", "Core 1", "Core1", "CORE1", "1", "c1", "C1"]
+        : ["core 2", "Core 2", "Core2", "CORE2", "2", "c2", "C2"];
+
+    let triedInFallback = false;
+    try {
+      let last: QueryDocumentSnapshot<QuestionFS> | null = null;
+      // eslint-disable-next-line no-constant-condition
+      while (variants.length > 0) {
+        const qry: Query<QuestionFS> = last
+          ? (fsQuery(colRef, where("core", "in", variants as string[]), orderBy("createdAt", "desc"), startAfter(last), limit(BATCH_SIZE)) as Query<QuestionFS>)
+          : (fsQuery(colRef, where("core", "in", variants as string[]), orderBy("createdAt", "desc"), limit(BATCH_SIZE)) as Query<QuestionFS>);
+        const page: QuerySnapshot<QuestionFS> = await getDocs(qry);
+        if (page.empty) break;
+        page.docs.forEach(pushDoc);
+        last = page.docs[page.docs.length - 1] ?? null;
+        if (page.size < BATCH_SIZE) break;
+      }
+    } catch (err) {
+      const msg = String((err as { message?: string })?.message ?? "").toLowerCase();
+      if (msg.includes("requires an index")) triedInFallback = true;
+      else if (msg.includes("invalid query") || msg.includes("not supported")) {
+        // بعض المشاريع تمنع orderBy مع in — سنتجاهل هذه المحاولة ونكمل
+      } else {
+        throw err;
+      }
+    }
+
+    // B-fallback) where in + orderBy(documentId())
+    if (triedInFallback && variants.length > 0) {
+      let last: QueryDocumentSnapshot<QuestionFS> | null = null;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const qry: Query<QuestionFS> = last
+          ? (fsQuery(colRef, where("core", "in", variants as string[]), orderBy(documentId()), startAfter(last), limit(BATCH_SIZE)) as Query<QuestionFS>)
+          : (fsQuery(colRef, where("core", "in", variants as string[]), orderBy(documentId()), limit(BATCH_SIZE)) as Query<QuestionFS>);
+        const page: QuerySnapshot<QuestionFS> = await getDocs(qry);
+        if (page.empty) break;
+        page.docs.forEach(pushDoc);
+        last = page.docs[page.docs.length - 1] ?? null;
+        if (page.size < BATCH_SIZE) break;
+      }
+    }
+
+    // C) مسح شامل بالـ documentId() + فلترة محلية (المفقود => core1)
+    {
+      let last: QueryDocumentSnapshot<QuestionFS> | null = null;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const qry: Query<QuestionFS> = last
+          ? (fsQuery(colRef, orderBy(documentId()), startAfter(last), limit(BATCH_SIZE)) as Query<QuestionFS>)
+          : (fsQuery(colRef, orderBy(documentId()), limit(BATCH_SIZE)) as Query<QuestionFS>);
+        const page: QuerySnapshot<QuestionFS> = await getDocs(qry);
+        if (page.empty) break;
+
+        page.docs.forEach((docSnap) => {
+          if (rowsMap.has(docSnap.id)) return; // موجود من (A/B)
+          const data = docSnap.data();
+          const normalized = normalizeCoreValue(data.core);
+          const assumed: Core = (normalized ?? "core1");
+          if (assumed === core) {
+            rowsMap.set(docSnap.id, { id: docSnap.id, ...(data as unknown as Record<string, unknown>) } as Question);
+          }
+        });
+
+        last = page.docs[page.docs.length - 1] ?? null;
+        if (page.size < BATCH_SIZE) break;
+      }
+    }
+
+    const rows = Array.from(rowsMap.values());
     rows.sort((a, b) => toMs((b as any).createdAt) - toMs((a as any).createdAt));
     return rows;
   }, []);
 
+  // load data
   React.useEffect(() => {
     let cancel = false;
     const run = async () => {
@@ -193,11 +282,9 @@ function CategorizeView() {
 
     for (let i = 0; i < allQuestions.length; i++) {
       const q = allQuestions[i];
-
       try {
-        // IMPORTANT: lib/actions expects a Question — مرر الكائن كاملاً مع فرض الـ core
+        // نمرر كائن Question (مع core مفروض) إلى الأكشن
         const res = await handleCategorizeQuestion({ ...q, core: activeCore } as Question);
-        // اعتبر أن الإرجاع فيه chapter محدث (متوافق مع استخدامك السابق)
         const newChapter: string = (res as any)?.chapter ?? (q as any).chapter ?? "";
         const modNum = moduleNumberFromTitle(newChapter);
 
@@ -244,7 +331,6 @@ function CategorizeView() {
     }
     setIsSaving(true);
     try {
-      // أرسل فقط الحقول المعروفة في Question
       const payload: Question[] = updatedQuestions.map((q) => {
         const chapter = q._newChapter ?? (q as any).chapter;
         return {
@@ -357,7 +443,8 @@ function CategorizeView() {
                           <tr key={q.id ?? i} className="border-b last:border-b-0">
                             <td className="py-2 pr-3 text-muted-foreground">{i + 1}</td>
                             <td className="py-2 pr-3">
-                              {q.questionText?.slice(0, 90) || "(no text)"}{q.questionText && q.questionText.length > 90 ? "…" : ""}
+                              {q.questionText?.slice(0, 90) || "(no text)"}
+                              {q.questionText && q.questionText.length > 90 ? "…" : ""}
                             </td>
                             <td className="py-2 pr-3">
                               {q._newChapter ?? (q as any).chapter ?? "-"}{" "}

@@ -49,23 +49,34 @@ function buildCore2Quizzes(total: number) {
   if (total >= 181) {
     items.push({ id: "quiz5", label: `Quiz 5 (181–${total})` });
   } else {
-    // لو أقل من 181 (نادر)، أعرض تسمية عامة
     items.push({ id: "quiz5", label: `Quiz 5 (181+ / remaining)` });
   }
 
   return items;
 }
 
-/** تسميات Core 1 تبقى كما هي: 6 كويزات */
-const CORE1_QUIZZES_STATIC = [
-  { id: "all", label: "All Questions" },
-  { id: "quiz1", label: "Quiz 1 (1–45)" },
-  { id: "quiz2", label: "Quiz 2 (46–90)" },
-  { id: "quiz3", label: "Quiz 3 (91–135)" },
-  { id: "quiz4", label: "Quiz 4 (136–180)" },
-  { id: "quiz5", label: "Quiz 5 (181–225)" },
-  { id: "quiz6", label: "Quiz 6 (226+ / remaining)" },
-];
+/** لبناء تسميات الكويز لـ Core 1: 6 كويزات — أول 5 بحجم متساوٍ والباقي لـ 6 */
+function buildCore1Quizzes(total: number) {
+  // افتراضي 287 إذا لم يصل العدد من الصفحة
+  const T = Math.max(0, Number.isFinite(total) && total > 0 ? total : 287);
+  const QUIZ_COUNT = 6;
+  const base = Math.floor(T / QUIZ_COUNT); // 287/6 = 47
+  const items: Array<{ id: string; label: string }> = [{ id: "all", label: "All Questions" }];
+
+  // أول 5 كويزات بحجم base (=47)
+  for (let i = 0; i < QUIZ_COUNT - 1; i++) {
+    const start = i * base + 1;
+    const end = Math.min((i + 1) * base, T);
+    items.push({ id: `quiz${i + 1}`, label: `Quiz ${i + 1} (${start}–${end})` });
+  }
+
+  // السادس يأخذ المتبقي
+  const start6 = (QUIZ_COUNT - 1) * base + 1; // 236 عندما T=287
+  const end6 = T; // 287
+  items.push({ id: "quiz6", label: `Quiz 6 (${start6}–${end6})` });
+
+  return items;
+}
 
 export default function FilterPanel({
   filters,
@@ -109,9 +120,12 @@ export default function FilterPanel({
   const activeCore: "core1" | "core2" = (filters?._activeCore as any) ?? "core1";
   const coreTotalCount: number = Number(filters?._coreCount ?? 0);
 
-  // خيارات الكويز ديناميكية: Core 1 ثابتة، Core 2 = 5 كويزات فقط
+  // خيارات الكويز ديناميكية:
+  // Core 1 = 6 كويزات (47×5 ثم الباقي)، Core 2 = 5 كويزات (45×4 ثم الباقي)
   const quizOptions = React.useMemo(() => {
-    return activeCore === "core2" ? buildCore2Quizzes(coreTotalCount || 230) : CORE1_QUIZZES_STATIC;
+    return activeCore === "core2"
+      ? buildCore2Quizzes(coreTotalCount || 230)
+      : buildCore1Quizzes(coreTotalCount || 287);
   }, [activeCore, coreTotalCount]);
 
   return (

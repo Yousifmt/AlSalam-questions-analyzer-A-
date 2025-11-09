@@ -124,7 +124,7 @@ function CoreSelectDialog({
             Choose which question set you want to view.
           </p>
 
-          {showClose && (
+        {showClose && (
             <button
               type="button"
               aria-label="Close"
@@ -285,29 +285,46 @@ export default function Home() {
       return na - nb;
     });
 
-    // quiz slicing (45 per quiz) — يعمل لكلا الكورين
+    // ========== ✅ Quiz slicing ==========
+    // Core 1: ديناميكي حسب إجمالي الأسئلة (مثالنا 287 => 47×5 ثم الباقي للـ 6)
+    // Core 2 (أو غيره): يبقى بالحجم الثابت 45 كما كان.
     if (filters.quiz !== "all") {
       const quizNumber = parseInt(String(filters.quiz).replace("quiz", ""), 10);
+
       if (quizNumber >= 1 && quizNumber <= 6) {
-        const SIZE = QUIZ_SIZE; // 45
-        let start = 0;
-        let end = chapterSorted.length;
-        if (quizNumber >= 1 && quizNumber <= 5) {
-          start = (quizNumber - 1) * SIZE;
-          end = Math.min(start + SIZE, chapterSorted.length);
-        } else if (quizNumber === 6) {
-          start = 5 * SIZE;
-          end = chapterSorted.length; // المتبقي
+        if (selectedCore === "core1") {
+          const TOTAL = chapterSorted.length; // متوقع 287
+          const QUIZ_COUNT = 6;
+          const baseSize = Math.floor(TOTAL / QUIZ_COUNT); // 47
+          const start =
+            quizNumber < QUIZ_COUNT
+              ? (quizNumber - 1) * baseSize
+              : (QUIZ_COUNT - 1) * baseSize; // بداية الكويز السادس
+          const end = quizNumber < QUIZ_COUNT ? Math.min(start + baseSize, TOTAL) : TOTAL; // السادس يأخذ المتبقي
+          temp = chapterSorted.slice(start, end);
+        } else {
+          // السلوك السابق لبقية الكور: حجم ثابت 45 وأسئلة الكويز السادس = المتبقي
+          const SIZE = QUIZ_SIZE; // 45
+          let start = 0;
+          let end = chapterSorted.length;
+          if (quizNumber >= 1 && quizNumber <= 5) {
+            start = (quizNumber - 1) * SIZE;
+            end = Math.min(start + SIZE, chapterSorted.length);
+          } else if (quizNumber === 6) {
+            start = 5 * SIZE;
+            end = chapterSorted.length;
+          }
+          start = Math.max(0, Math.min(start, chapterSorted.length));
+          end = Math.max(start, Math.min(end, chapterSorted.length));
+          temp = chapterSorted.slice(start, end);
         }
-        start = Math.max(0, Math.min(start, chapterSorted.length));
-        end = Math.max(start, Math.min(end, chapterSorted.length));
-        temp = chapterSorted.slice(start, end);
       } else {
         temp = chapterSorted;
       }
     } else {
       temp = chapterSorted;
     }
+    // ========== نهاية تعديل التقطيع ==========
 
     if (filters.recentOnly) {
       const cutoff = new Date(Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000);
@@ -552,7 +569,7 @@ export default function Home() {
                 isExamMode={isExamMode}
                 savedQuestionIds={savedQuestionIds}
                 onToggleSave={toggleSaveQuestion}
-                onAnswerChange={(id, a) => setUserAnswers((prev) => ({ ...prev, [id]: a }))}
+                onAnswerChange={(id, a) => setUserAnswers((prev) => ({ ...prev, [id]: a }))} // (لا تغيير وظيفي)
                 examAnswerMode={examAnswerMode}
                 isExamFinished={isExamFinished}
                 userAnswers={userAnswers}
